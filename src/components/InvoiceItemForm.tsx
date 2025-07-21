@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useFormContext } from 'react-hook-form'; // Use useFormContext for nested forms
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Form,
+  Form, // Keep Form for context, but individual fields use FormField
   FormControl,
   FormField,
   FormItem,
@@ -53,22 +53,13 @@ interface Service {
 
 interface InvoiceItemFormProps {
   index: number;
-  item: InvoiceItemFormValues & { id?: string };
-  onUpdate: (index: number, data: InvoiceItemFormValues) => void;
   onRemove: (index: number) => void;
 }
 
-const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate, onRemove }) => {
+const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, onRemove }) => {
   const { supabase } = useSession();
   const [services, setServices] = useState<Service[]>([]);
-
-  const form = useForm<InvoiceItemFormValues>({
-    resolver: zodResolver(invoiceItemFormSchema),
-    defaultValues: {
-      ...item,
-      service_id: item.service_id || 'custom', // Use 'custom' for no service linked
-    },
-  });
+  const { control, setValue, trigger, getValues } = useFormContext(); // Get control from parent context
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -85,32 +76,31 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
     fetchServices();
   }, [supabase]);
 
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      if (type === 'change') {
-        onUpdate(index, value as InvoiceItemFormValues);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, index, onUpdate]);
-
   const handleServiceChange = (serviceId: string) => {
     if (serviceId === 'custom') {
-      form.setValue('service_id', null);
-      form.setValue('description', '');
-      form.setValue('quantity', 1);
-      form.setValue('unit_price', 0);
-      form.setValue('vat_rate', 0);
+      setValue(`items.${index}.service_id`, null);
+      setValue(`items.${index}.description`, '');
+      setValue(`items.${index}.quantity`, 1);
+      setValue(`items.${index}.unit_price`, 0);
+      setValue(`items.${index}.vat_rate`, 0);
     } else {
       const selectedService = services.find(s => s.id === serviceId);
       if (selectedService) {
-        form.setValue('service_id', selectedService.id);
-        form.setValue('description', selectedService.name || '');
-        form.setValue('unit_price', selectedService.default_price || 0);
-        form.setValue('vat_rate', selectedService.vat_rate || 0);
-        form.setValue('quantity', 1); // Reset quantity to 1 when service is selected
+        setValue(`items.${index}.service_id`, selectedService.id);
+        setValue(`items.${index}.description`, selectedService.name || '');
+        setValue(`items.${index}.unit_price`, selectedService.default_price || 0);
+        setValue(`items.${index}.vat_rate`, selectedService.vat_rate || 0);
+        setValue(`items.${index}.quantity`, 1);
       }
     }
+    // Trigger validation for the updated fields
+    trigger([
+      `items.${index}.service_id`,
+      `items.${index}.description`,
+      `items.${index}.quantity`,
+      `items.${index}.unit_price`,
+      `items.${index}.vat_rate`,
+    ]);
   };
 
   return (
@@ -121,8 +111,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
         </Button>
       </div>
       <FormField
-        control={form.control}
-        name="service_id"
+        control={control}
+        name={`items.${index}.service_id`}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Link to Service</FormLabel>
@@ -146,8 +136,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
         )}
       />
       <FormField
-        control={form.control}
-        name="description"
+        control={control}
+        name={`items.${index}.description`}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Description</FormLabel>
@@ -160,8 +150,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
       />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <FormField
-          control={form.control}
-          name="quantity"
+          control={control}
+          name={`items.${index}.quantity`}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Quantity</FormLabel>
@@ -171,7 +161,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
                   step="0.01"
                   placeholder="1.00"
                   {...field}
-                  value={field.value?.toString() || ''} // Ensure value is string
+                  value={field.value?.toString() || ''}
                   onChange={e => field.onChange(e.target.value)}
                 />
               </FormControl>
@@ -180,8 +170,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
           )}
         />
         <FormField
-          control={form.control}
-          name="unit_price"
+          control={control}
+          name={`items.${index}.unit_price`}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Unit Price</FormLabel>
@@ -191,7 +181,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
                   step="0.01"
                   placeholder="0.00"
                   {...field}
-                  value={field.value?.toString() || ''} // Ensure value is string
+                  value={field.value?.toString() || ''}
                   onChange={e => field.onChange(e.target.value)}
                 />
               </FormControl>
@@ -200,8 +190,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
           )}
         />
         <FormField
-          control={form.control}
-          name="vat_rate"
+          control={control}
+          name={`items.${index}.vat_rate`}
           render={({ field }) => (
             <FormItem>
               <FormLabel>VAT Rate</FormLabel>
@@ -211,7 +201,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
                   step="0.01"
                   placeholder="0.00"
                   {...field}
-                  value={field.value?.toString() || ''} // Ensure value is string
+                  value={field.value?.toString() || ''}
                   onChange={e => field.onChange(e.target.value)}
                 />
               </FormControl>

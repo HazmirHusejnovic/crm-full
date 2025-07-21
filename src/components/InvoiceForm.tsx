@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, FormProvider } from 'react-hook-form'; // Import FormProvider
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -60,11 +60,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
       issue_date: initialData?.issue_date ? format(new Date(initialData.issue_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       due_date: initialData?.due_date ? format(new Date(initialData.due_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       status: initialData?.status || 'draft',
-      items: initialData?.items || [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0 }],
+      items: initialData?.items || [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }], // Ensure service_id is initialized
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'items',
   });
@@ -73,16 +73,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
     const fetchClients = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name') // Removed auth_users(email) from here
+        .select('id, first_name, last_name')
         .eq('role', 'client');
 
       if (error) {
         toast.error('Failed to load clients: ' + error.message);
       } else {
-        // Now fetch emails separately for each client profile
         const clientsWithEmails = await Promise.all(data.map(async (profile: any) => {
           const { data: userData, error: userError } = await supabase
-            .from('profiles') // Querying profiles again to get the joined auth.users email
+            .from('profiles')
             .select('users(email)')
             .eq('id', profile.id)
             .single();
@@ -110,6 +109,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
   const onSubmit = async (values: InvoiceFormValues) => {
     if (!session?.user?.id) {
       toast.error('User not authenticated.');
+      return;
+    }
+
+    // Validate items before proceeding
+    const itemValidationResults = await Promise.all(values.items.map(item => invoiceItemFormSchema.safeParseAsync(item)));
+    const invalidItems = itemValidationResults.filter(result => !result.success);
+
+    if (invalidItems.length > 0) {
+      toast.error('Please correct errors in invoice items.');
+      console.error('Invalid items:', invalidItems.map(item => (item as any).error.errors)); // Log detailed errors
       return;
     }
 
@@ -190,12 +199,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
     onSuccess?.();
   };
 
-  const handleItemUpdate = (index: number, data: InvoiceItemFormValues) => {
-    update(index, data);
-  };
-
   return (
-    <Form {...form}>
+    <FormProvider {...form}> {/* Wrap the form with FormProvider */}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
@@ -293,19 +298,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
             <InvoiceItemForm
               key={item.id}
               index={index}
-              item={item}
-              onUpdate={handleItemUpdate}
               onRemove={remove}
             />
           ))}
         </div>
-        <Button type="button" variant="outline" onClick={() => append({ description: '', quantity: 1, unit_price: 0, vat_rate: 0 })}>
+        <Button type="button" variant="outline" onClick={() => append({ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null })}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Item
         </Button>
 
         <Button type="submit" className="w-full">Save Invoice</Button>
       </form>
-    </Form>
+    </FormProvider>
   );
 };
 
