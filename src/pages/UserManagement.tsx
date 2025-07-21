@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ProfileForm from '@/components/ProfileForm';
 import UserCreateForm from '@/components/UserCreateForm'; // Import the new UserCreateForm
 import { toast } from 'sonner';
-import { Edit, Search, Eye, UserPlus } from 'lucide-react'; // Import UserPlus icon
+import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react'; // Import Trash2 icon
 import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
@@ -98,6 +98,39 @@ const UserManagementPage: React.FC = () => {
     navigate(`/clients/${clientId}`);
   };
 
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!window.confirm(`Are you sure you want to delete user: ${userEmail}? This action cannot be undone.`)) {
+      return;
+    }
+
+    if (!session?.user?.id) {
+      toast.error('User not authenticated.');
+      return;
+    }
+
+    try {
+      const response = await fetch('https://ulkesgvggxkopvwnaqju.supabase.co/functions/v1/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user.');
+      }
+
+      toast.success('User deleted successfully!');
+      fetchProfiles(); // Refresh the list
+    } catch (error: any) {
+      toast.error('Error deleting user: ' + error.message);
+    }
+  };
+
   const handleFormSuccess = () => {
     setIsEditFormOpen(false);
     setIsCreateFormOpen(false);
@@ -183,6 +216,11 @@ const UserManagementPage: React.FC = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
                       <Edit className="h-4 w-4" />
                     </Button>
+                    {profile.id !== session?.user?.id && ( // Prevent deleting self
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(profile.id, profile.email)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>
