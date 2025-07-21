@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input'; // Import Input for search
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ServiceCategoryForm from '@/components/ServiceCategoryForm';
 import ServiceForm from '@/components/ServiceForm';
 import { toast } from 'sonner';
-import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface ServiceCategory {
   id: string;
@@ -42,8 +42,9 @@ const ServicesPage: React.FC = () => {
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | undefined>(undefined);
   const [editingService, setEditingService] = useState<Service | undefined>(undefined);
-  const [searchTerm, setSearchTerm] = useState(''); // New state for service search term
-  const [filterCategoryId, setFilterCategoryId] = useState<string>('all'); // New state for service category filter
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
@@ -77,11 +78,11 @@ const ServicesPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      query = query.ilike('name', `%${searchTerm}%`); // Apply search filter
+      query = query.ilike('name', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId); // Apply category filter
+      query = query.eq('category_id', filterCategoryId);
     }
 
     const { data, error } = await query.order('name', { ascending: true });
@@ -95,12 +96,28 @@ const ServicesPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+    }
     fetchCategories();
-  }, [supabase]);
+  }, [supabase, session]);
 
   useEffect(() => {
     fetchServices();
-  }, [supabase, searchTerm, filterCategoryId]); // Re-fetch services when search term or filter changes
+  }, [supabase, searchTerm, filterCategoryId]);
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -165,10 +182,23 @@ const ServicesPage: React.FC = () => {
     fetchServices();
   };
 
+  const canManageServices = currentUserRole === 'administrator'; // Only admins can manage services/categories
+
   if (loadingCategories || loadingServices) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
+      </div>
+    );
+  }
+
+  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
       </div>
     );
   }
@@ -186,19 +216,21 @@ const ServicesPage: React.FC = () => {
         <TabsContent value="services" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">All Services</h2>
-            <Dialog open={isServiceFormOpen} onOpenChange={setIsServiceFormOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleNewServiceClick}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{editingService ? 'Edit Service' : 'Create New Service'}</DialogTitle>
-                </DialogHeader>
-                <ServiceForm initialData={editingService} onSuccess={handleServiceFormSuccess} />
-              </DialogContent>
-            </Dialog>
+            {canManageServices && (
+              <Dialog open={isServiceFormOpen} onOpenChange={setIsServiceFormOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={handleNewServiceClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingService ? 'Edit Service' : 'Create New Service'}</DialogTitle>
+                  </DialogHeader>
+                  <ServiceForm initialData={editingService} onSuccess={handleServiceFormSuccess} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -236,12 +268,16 @@ const ServicesPage: React.FC = () => {
                     <CardTitle className="flex justify-between items-center">
                       {service.name}
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditServiceClick(service)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteService(service.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        {canManageServices && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditServiceClick(service)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteService(service.id)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </CardTitle>
                   </CardHeader>
@@ -264,19 +300,21 @@ const ServicesPage: React.FC = () => {
         <TabsContent value="categories" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">Service Categories</h2>
-            <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleNewCategoryClick}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Category
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{editingCategory ? 'Edit Category' : 'Create New Category'}</DialogTitle>
-                </DialogHeader>
-                <ServiceCategoryForm initialData={editingCategory} onSuccess={handleCategoryFormSuccess} />
-              </DialogContent>
-            </Dialog>
+            {canManageServices && (
+              <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={handleNewCategoryClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Category
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingCategory ? 'Edit Category' : 'Create New Category'}</DialogTitle>
+                  </DialogHeader>
+                  <ServiceCategoryForm initialData={editingCategory} onSuccess={handleCategoryFormSuccess} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -288,14 +326,16 @@ const ServicesPage: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                       {category.name}
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
+                      {canManageServices && (
+                        <div className="flex space-x-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category.id)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-grow">

@@ -28,9 +28,9 @@ interface Product {
   stock_quantity: number;
   category_id: string | null;
   sku: string | null;
-  vat_rate: number; // Added vat_rate
+  vat_rate: number;
   created_at: string;
-  product_categories: { name: string } | null; // For category name
+  product_categories: { name: string } | null;
 }
 
 const ProductsPage: React.FC = () => {
@@ -184,6 +184,8 @@ const ProductsPage: React.FC = () => {
     fetchProducts();
   };
 
+  const canManageProducts = currentUserRole === 'administrator'; // Only admins can manage products/categories
+
   if (loadingCategories || loadingProducts) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -216,19 +218,21 @@ const ProductsPage: React.FC = () => {
         <TabsContent value="products" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">All Products</h2>
-            <Dialog open={isProductFormOpen} onOpenChange={setIsProductFormOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleNewProductClick}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{editingProduct ? 'Edit Product' : 'Create New Product'}</DialogTitle>
-                </DialogHeader>
-                <ProductForm initialData={editingProduct} onSuccess={handleProductFormSuccess} />
-              </DialogContent>
-            </Dialog>
+            {canManageProducts && (
+              <Dialog open={isProductFormOpen} onOpenChange={setIsProductFormOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={handleNewProductClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingProduct ? 'Edit Product' : 'Create New Product'}</DialogTitle>
+                  </DialogHeader>
+                  <ProductForm initialData={editingProduct} onSuccess={handleProductFormSuccess} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -266,12 +270,16 @@ const ProductsPage: React.FC = () => {
                     <CardTitle className="flex justify-between items-center">
                       {product.name}
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditProductClick(product)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteProduct(product.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        {canManageProducts && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditProductClick(product)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteProduct(product.id)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </CardTitle>
                   </CardHeader>
@@ -295,19 +303,21 @@ const ProductsPage: React.FC = () => {
         <TabsContent value="categories" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">Product Categories</h2>
-            <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleNewCategoryClick}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Category
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{editingCategory ? 'Edit Category' : 'Create New Category'}</DialogTitle>
-                </DialogHeader>
-                <ProductCategoryForm initialData={editingCategory} onSuccess={handleCategoryFormSuccess} />
-              </DialogContent>
-            </Dialog>
+            {canManageProducts && (
+              <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={handleNewCategoryClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Category
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingCategory ? 'Edit Category' : 'Create New Category'}</DialogTitle>
+                  </DialogHeader>
+                  <ProductCategoryForm initialData={editingCategory} onSuccess={handleCategoryFormSuccess} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -319,14 +329,16 @@ const ProductsPage: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                       {category.name}
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
+                      {canManageProducts && (
+                        <div className="flex space-x-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(category.id)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-grow">

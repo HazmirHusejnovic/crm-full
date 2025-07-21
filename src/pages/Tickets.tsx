@@ -3,13 +3,13 @@ import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input'; // Import Input for search
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TicketForm from '@/components/TicketForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface Ticket {
   id: string;
@@ -32,8 +32,9 @@ const TicketsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | undefined>(undefined);
-  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
-  const [filterStatus, setFilterStatus] = useState<string>('all'); // New state for status filter
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -55,11 +56,11 @@ const TicketsPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      query = query.ilike('subject', `%${searchTerm}%`); // Apply search filter
+      query = query.ilike('subject', `%${searchTerm}%`);
     }
 
     if (filterStatus !== 'all') {
-      query = query.eq('status', filterStatus); // Apply status filter
+      query = query.eq('status', filterStatus);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
@@ -73,8 +74,24 @@ const TicketsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+    }
     fetchTickets();
-  }, [supabase, searchTerm, filterStatus]); // Re-fetch when search term or filter status changes
+  }, [supabase, searchTerm, filterStatus, session]);
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);
@@ -107,6 +124,11 @@ const TicketsPage: React.FC = () => {
     fetchTickets();
   };
 
+  const canManageTickets = currentUserRole === 'worker' || currentUserRole === 'administrator';
+  const canDeleteTickets = currentUserRole === 'administrator';
+  const canCreateTickets = currentUserRole === 'client' || currentUserRole === 'worker' || currentUserRole === 'administrator';
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -119,19 +141,21 @@ const TicketsPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Tickets</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewTicketClick}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Ticket
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editingTicket ? 'Edit Ticket' : 'Create New Ticket'}</DialogTitle>
-            </DialogHeader>
-            <TicketForm initialData={editingTicket} onSuccess={handleFormSuccess} />
-          </DialogContent>
-        </Dialog>
+        {canCreateTickets && (
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNewTicketClick}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Ticket
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingTicket ? 'Edit Ticket' : 'Create New Ticket'}</DialogTitle>
+              </DialogHeader>
+              <TicketForm initialData={editingTicket} onSuccess={handleFormSuccess} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -169,12 +193,16 @@ const TicketsPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {ticket.subject}
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEditTicketClick(ticket)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTicket(ticket.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
+                    {canManageTickets && (
+                      <Button variant="ghost" size="icon" onClick={() => handleEditTicketClick(ticket)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDeleteTickets && (
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteTicket(ticket.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>

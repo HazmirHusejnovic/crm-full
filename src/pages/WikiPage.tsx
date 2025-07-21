@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import WikiCategoryForm from '@/components/WikiCategoryForm';
 import WikiArticleForm from '@/components/WikiArticleForm';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // For GitHub Flavored Markdown
+import remarkGfm from 'remark-gfm';
 
 interface WikiCategory {
   id: string;
@@ -32,11 +32,11 @@ interface WikiArticle {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
-  category_name: string | null; // From view
-  creator_first_name: string | null; // From view
-  creator_last_name: string | null; // From view
-  updater_first_name: string | null; // From view
-  updater_last_name: string | null; // From view
+  category_name: string | null;
+  creator_first_name: string | null;
+  creator_last_name: string | null;
+  updater_first_name: string | null;
+  updater_last_name: string | null;
 }
 
 interface WikiArticleVersion {
@@ -86,7 +86,7 @@ const WikiPage: React.FC = () => {
   const fetchArticles = async () => {
     setLoadingArticles(true);
     let query = supabase
-      .from('wiki_articles_with_details') // Use the new view
+      .from('wiki_articles_with_details')
       .select(`
         id,
         title,
@@ -170,7 +170,7 @@ const WikiPage: React.FC = () => {
 
   useEffect(() => {
     fetchArticles();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, currentUserRole]); // Re-fetch articles when filters or role change
+  }, [supabase, searchTerm, filterCategoryId, filterVisibility, currentUserRole]);
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -195,7 +195,7 @@ const WikiPage: React.FC = () => {
     } else {
       toast.success('Category deleted successfully!');
       fetchCategories();
-      fetchArticles(); // Refresh articles as well
+      fetchArticles();
     }
   };
 
@@ -353,7 +353,7 @@ const WikiPage: React.FC = () => {
                       <p>Category: <span className="font-medium">{article.category_name || 'N/A'}</span></p>
                       <p>Visibility: <span className="font-medium capitalize">{article.visibility}</span></p>
                       <p>Created By: <span className="font-medium">{article.creator_first_name} {article.creator_last_name}</span></p>
-                      <p>Last Updated: <span className="font-medium">{format(new Date(article.updated_at), 'PPP p')}</span></p>
+                      <p>Last Updated: <span className="font-medium">{article.updated_at ? format(new Date(article.updated_at), 'PPP p') : 'N/A'}</span></p>
                       {canManageWiki && (
                         <Button variant="link" size="sm" className="p-0 h-auto mt-2" onClick={() => handleViewVersionHistory(article)}>
                           View History

@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { PlusCircle } from 'lucide-react';
-import NewChatForm from '@/components/NewChatForm'; // Import the new form
+import NewChatForm from '@/components/NewChatForm';
 
 interface Chat {
   id: string;
@@ -30,15 +30,30 @@ interface EnrichedChat extends Chat {
 const ChatPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [loading, setLoading] = useState(true);
-  const [conversations, setConversations] = useState<EnrichedChat[]>([]); // Use EnrichedChat
+  const [conversations, setConversations] = useState<EnrichedChat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchConversations = async () => {
     setLoading(true);
     if (!session?.user?.id) {
       setLoading(false);
       return;
+    }
+
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+      setLoading(false);
+      return;
+    } else {
+      setCurrentUserRole(roleData.role);
     }
 
     // First, fetch all chat IDs the current user is a part of
@@ -138,9 +153,11 @@ const ChatPage: React.FC = () => {
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);
-    fetchConversations(); // Re-fetch conversations to include the new one
-    setSelectedChatId(newChatId); // Automatically select the new chat
+    fetchConversations();
+    setSelectedChatId(newChatId);
   };
+
+  const canCreateNewChat = currentUserRole === 'worker' || currentUserRole === 'administrator';
 
   if (loading) {
     return (
@@ -155,19 +172,21 @@ const ChatPage: React.FC = () => {
       <Card className="w-full lg:w-1/3 flex-shrink-0 lg:mr-4 mb-4 lg:mb-0 flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Conversations</CardTitle>
-          <Dialog open={isNewChatFormOpen} onOpenChange={setIsNewChatFormOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <PlusCircle className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Start New Chat</DialogTitle>
-              </DialogHeader>
-              <NewChatForm onSuccess={handleNewChatSuccess} />
-            </DialogContent>
-          </Dialog>
+          {canCreateNewChat && (
+            <Dialog open={isNewChatFormOpen} onOpenChange={setIsNewChatFormOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Start New Chat</DialogTitle>
+                </DialogHeader>
+                <NewChatForm onSuccess={handleNewChatSuccess} />
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
           <ConversationList

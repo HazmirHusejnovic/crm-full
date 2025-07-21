@@ -20,7 +20,7 @@ import {
   Package,
   ShoppingCart,
   BookOpen,
-  MessageSquare, // Import MessageSquare icon for Chat
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -66,7 +66,7 @@ interface AppSettings {
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
-  module_chat_enabled: boolean; // Add new field for Chat module
+  module_chat_enabled: boolean;
 }
 
 const Sidebar: React.FC = () => {
@@ -104,7 +104,7 @@ const Sidebar: React.FC = () => {
           console.error('Error fetching user role:', roleError.message);
           toast.error('Failed to fetch user role.');
         } else {
-          setUserRole(roleData.role);
+          setUserRole(data.role);
         }
       }
       setLoadingSettings(false);
@@ -120,6 +120,14 @@ const Sidebar: React.FC = () => {
     } else {
       toast.success('Logged out successfully!');
     }
+  };
+
+  // Helper to check if a module is enabled AND if the user has the required role
+  const isModuleVisible = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
+    if (!appSettings || !userRole) return false;
+    const moduleEnabled = appSettings[moduleKey];
+    const userHasRequiredRole = requiredRoles.includes(userRole);
+    return moduleEnabled && userHasRequiredRole;
   };
 
   if (loadingSettings) {
@@ -145,80 +153,78 @@ const Sidebar: React.FC = () => {
               icon={LayoutDashboard}
               label="Dashboard"
               isActive={location.pathname === '/dashboard'}
-              isVisible={appSettings?.module_dashboard_enabled || false}
+              isVisible={isModuleVisible('module_dashboard_enabled')}
             />
             <NavLink
               to="/tasks"
               icon={ListTodo}
               label="Tasks"
               isActive={location.pathname === '/tasks'}
-              isVisible={appSettings?.module_tasks_enabled || false}
+              isVisible={isModuleVisible('module_tasks_enabled')}
             />
             <NavLink
               to="/tickets"
               icon={Ticket}
               label="Tickets"
               isActive={location.pathname === '/tickets'}
-              isVisible={appSettings?.module_tickets_enabled || false}
+              isVisible={isModuleVisible('module_tickets_enabled')}
             />
             <NavLink
               to="/services"
               icon={Briefcase}
               label="Services"
               isActive={location.pathname === '/services'}
-              isVisible={appSettings?.module_services_enabled || false}
+              isVisible={isModuleVisible('module_services_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/products"
               icon={Package}
               label="Products"
               isActive={location.pathname === '/products'}
-              isVisible={appSettings?.module_products_enabled || false}
+              isVisible={isModuleVisible('module_products_enabled', ['administrator'])}
             />
             <NavLink
               to="/pos"
               icon={ShoppingCart}
               label="POS"
               isActive={location.pathname === '/pos'}
-              isVisible={appSettings?.module_pos_enabled || false}
+              isVisible={isModuleVisible('module_pos_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/invoices"
               icon={ReceiptText}
               label="Invoices"
               isActive={location.pathname === '/invoices'}
-              isVisible={appSettings?.module_invoices_enabled || false}
+              isVisible={isModuleVisible('module_invoices_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/reports"
               icon={BarChart3}
               label="Reports"
               isActive={location.pathname === '/reports'}
-              isVisible={appSettings?.module_reports_enabled || false}
+              isVisible={isModuleVisible('module_reports_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/wiki"
               icon={BookOpen}
               label="Wiki"
               isActive={location.pathname === '/wiki'}
-              isVisible={appSettings?.module_wiki_enabled || false}
+              isVisible={isModuleVisible('module_wiki_enabled')}
             />
             <NavLink
               to="/chat"
               icon={MessageSquare}
               label="Chat"
               isActive={location.pathname === '/chat'}
-              isVisible={appSettings?.module_chat_enabled || false}
-            /> {/* New Chat Module link */}
-            {userRole === 'administrator' && (
-              <NavLink
-                to="/users"
-                icon={Users}
-                label="User Management"
-                isActive={location.pathname === '/users'}
-                isVisible={appSettings?.module_users_enabled || false}
-              />
-            )}
+              isVisible={isModuleVisible('module_chat_enabled')}
+            />
+            <NavLink
+              to="/users"
+              icon={Users}
+              label="User Management"
+              isActive={location.pathname === '/users'}
+              isVisible={isModuleVisible('module_users_enabled', ['administrator'])}
+            />
           </div>
         </div>
         <div className="px-3 py-2 mt-4">
@@ -229,14 +235,14 @@ const Sidebar: React.FC = () => {
               icon={User}
               label="My Profile"
               isActive={location.pathname === '/profile'}
-              isVisible={appSettings?.module_profile_enabled || false}
+              isVisible={isModuleVisible('module_profile_enabled')}
             />
             <NavLink
               to="/settings"
               icon={Settings}
               label="Settings"
               isActive={location.pathname === '/settings'}
-              isVisible={appSettings?.module_settings_enabled || false}
+              isVisible={isModuleVisible('module_settings_enabled', ['administrator'])}
             />
           </div>
         </div>

@@ -9,7 +9,7 @@ import TaskForm from '@/components/TaskForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import the new LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface Task {
   id: string;
@@ -32,6 +32,7 @@ const TasksPage: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -69,8 +70,24 @@ const TasksPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+    }
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus]); // Re-fetch when search term or filter status changes
+  }, [supabase, searchTerm, filterStatus, session]);
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);
@@ -106,6 +123,9 @@ const TasksPage: React.FC = () => {
     fetchTasks();
   };
 
+  const canManageTasks = currentUserRole === 'worker' || currentUserRole === 'administrator';
+  const canDeleteTasks = currentUserRole === 'administrator';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -118,19 +138,21 @@ const TasksPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Tasks</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewTaskClick}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editingTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
-            </DialogHeader>
-            <TaskForm initialData={editingTask} onSuccess={handleFormSuccess} />
-          </DialogContent>
-        </Dialog>
+        {canManageTasks && (
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNewTaskClick}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+              </DialogHeader>
+              <TaskForm initialData={editingTask} onSuccess={handleFormSuccess} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -167,12 +189,16 @@ const TasksPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {task.title}
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEditTaskClick(task)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
+                    {canManageTasks && (
+                      <Button variant="ghost" size="icon" onClick={() => handleEditTaskClick(task)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDeleteTasks && (
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>

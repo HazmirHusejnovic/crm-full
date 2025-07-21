@@ -18,8 +18,8 @@ interface ClientProfile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
-  default_currency_id: string | null; // Add new field
-  default_currency: { code: string; symbol: string } | null; // For displaying currency details
+  default_currency_id: string | null;
+  default_currency: { code: string; symbol: string } | null;
 }
 
 interface ClientTask {
@@ -30,8 +30,8 @@ interface ClientTask {
   created_at: string;
   assigned_to: string | null;
   created_by: string;
-  profiles: { first_name: string | null; last_name: string | null } | null; // Assigned to
-  creator_profile: { first_name: string | null; last_name: string | null } | null; // Created by
+  profiles: { first_name: string | null; last_name: string | null } | null;
+  creator_profile: { first_name: string | null; last_name: string | null } | null;
 }
 
 interface ClientTicket {
@@ -42,9 +42,9 @@ interface ClientTicket {
   created_at: string;
   assigned_to: string | null;
   created_by: string;
-  profiles: { first_name: string | null; last_name: string | null } | null; // Assigned to
-  creator_profile: { first_name: string | null; last_name: string | null } | null; // Created by
-  tasks: { title: string | null } | null; // For linked_task
+  profiles: { first_name: string | null; last_name: string | null } | null;
+  creator_profile: { first_name: string | null; last_name: string | null } | null;
+  tasks: { title: string | null } | null;
 }
 
 interface CreatorProfileDetails {
@@ -61,7 +61,7 @@ interface ClientInvoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_at: string;
   created_by: string;
-  creator_profile_details: CreatorProfileDetails | null; // Changed to separate fetch
+  creator_profile_details: CreatorProfileDetails | null;
 }
 
 const ClientDetailsPage: React.FC = () => {
@@ -110,7 +110,7 @@ const ClientDetailsPage: React.FC = () => {
 
     // Fetch client profile
     const { data: profileData, error: profileError } = await supabase
-      .from('profiles_with_auth_emails') // Use the new view
+      .from('profiles_with_auth_emails')
       .select(`
           id,
           first_name,
@@ -119,7 +119,7 @@ const ClientDetailsPage: React.FC = () => {
           email,
           default_currency_id,
           currencies(code, symbol)
-        `) // Select email and default_currency_id directly, and join currencies
+        `)
       .eq('id', id)
       .single();
 
@@ -271,6 +271,10 @@ const ClientDetailsPage: React.FC = () => {
     fetchData(); // Re-fetch all data to update lists
   };
 
+  const canCreateTasks = currentUserRole === 'worker' || currentUserRole === 'administrator';
+  const canCreateTickets = currentUserRole === 'client' || currentUserRole === 'worker' || currentUserRole === 'administrator';
+  const canCreateInvoices = currentUserRole === 'worker' || currentUserRole === 'administrator';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -314,76 +318,82 @@ const ClientDetailsPage: React.FC = () => {
           Client Details: {clientProfile.first_name} {clientProfile.last_name}
         </h1>
         <div className="flex space-x-2">
-          <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" /> Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Create Task for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
-              </DialogHeader>
-              <TaskForm
-                initialData={{
-                  title: `Task for ${clientProfile.first_name} ${clientProfile.last_name}`,
-                  description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
-                  status: 'pending',
-                  assigned_to: null,
-                  due_date: '',
-                }}
-                onSuccess={handleFormSuccess}
-              />
-            </DialogContent>
-          </Dialog>
+          {canCreateTasks && (
+            <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Task
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create Task for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+                </DialogHeader>
+                <TaskForm
+                  initialData={{
+                    title: `Task for ${clientProfile.first_name} ${clientProfile.last_name}`,
+                    description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
+                    status: 'pending',
+                    assigned_to: null,
+                    due_date: '',
+                  }}
+                  onSuccess={handleFormSuccess}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
 
-          <Dialog open={isTicketFormOpen} onOpenChange={setIsTicketFormOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" /> Ticket
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Create Ticket for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
-              </DialogHeader>
-              <TicketForm
-                initialData={{
-                  subject: `Ticket for ${clientProfile.first_name} ${clientProfile.last_name}`,
-                  description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
-                  status: 'open',
-                  priority: 'medium',
-                  assigned_to: null,
-                  linked_task_id: null,
-                }}
-                onSuccess={handleFormSuccess}
-              />
-            </DialogContent>
-          </Dialog>
+          {canCreateTickets && (
+            <Dialog open={isTicketFormOpen} onOpenChange={setIsTicketFormOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Ticket
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create Ticket for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+                </DialogHeader>
+                <TicketForm
+                  initialData={{
+                    subject: `Ticket for ${clientProfile.first_name} ${clientProfile.last_name}`,
+                    description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
+                    status: 'open',
+                    priority: 'medium',
+                    assigned_to: null,
+                    linked_task_id: null,
+                  }}
+                  onSuccess={handleFormSuccess}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
 
-          <Dialog open={isInvoiceFormOpen} onOpenChange={setIsInvoiceFormOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" /> Invoice
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px]"> {/* Increased max-width for invoice form */}
-              <DialogHeader>
-                <DialogTitle>Create Invoice for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
-              </DialogHeader>
-              <InvoiceForm
-                initialData={{
-                  invoice_number: '', // Will be generated or manually entered
-                  client_id: id,
-                  issue_date: format(new Date(), 'yyyy-MM-dd'),
-                  due_date: format(new Date(), 'yyyy-MM-dd'),
-                  status: 'draft',
-                  items: [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }],
-                }}
-                onSuccess={handleFormSuccess}
-              />
-            </DialogContent>
-          </Dialog>
+          {canCreateInvoices && (
+            <Dialog open={isInvoiceFormOpen} onOpenChange={setIsInvoiceFormOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Invoice
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[700px]">
+                <DialogHeader>
+                  <DialogTitle>Create Invoice for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+                </DialogHeader>
+                <InvoiceForm
+                  initialData={{
+                    invoice_number: '',
+                    client_id: id,
+                    issue_date: format(new Date(), 'yyyy-MM-dd'),
+                    due_date: format(new Date(), 'yyyy-MM-dd'),
+                    status: 'draft',
+                    items: [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }],
+                  }}
+                  onSuccess={handleFormSuccess}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 

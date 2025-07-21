@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import TicketStatusChart from '@/components/TicketStatusChart';
-import InvoiceStatusChart from '@/components/InvoiceStatusChart'; // Import the new InvoiceStatusChart
+import InvoiceStatusChart from '@/components/InvoiceStatusChart';
 
 interface TaskStatusData {
   name: string;
@@ -30,7 +30,8 @@ const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
-  const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]); // New state for invoice data
+  const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session) {
@@ -41,6 +42,23 @@ const ReportsPage: React.FC = () => {
     const fetchReportData = async () => {
       setLoading(true);
       let hasError = false;
+
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+        hasError = true;
+      } else {
+        setCurrentUserRole(roleData.role);
+        if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
+          setLoading(false);
+          return; // Exit if not authorized
+        }
+      }
 
       // Fetch all tasks to count by status for the chart
       const { data: allTasks, error: allTasksError } = await supabase
@@ -153,6 +171,17 @@ const ReportsPage: React.FC = () => {
     );
   }
 
+  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Reports & Analytics</h1>
@@ -160,8 +189,7 @@ const ReportsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TaskStatusChart data={taskStatusData} />
         <TicketStatusChart data={ticketStatusData} />
-        <InvoiceStatusChart data={invoiceStatusData} /> {/* New Invoice Status Chart */}
-        {/* Add more charts or reports here as needed */}
+        <InvoiceStatusChart data={invoiceStatusData} />
       </div>
     </div>
   );

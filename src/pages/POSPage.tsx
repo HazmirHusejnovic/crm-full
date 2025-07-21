@@ -22,7 +22,7 @@ interface Product {
   price: number;
   stock_quantity: number;
   sku: string | null;
-  vat_rate: number; // Added vat_rate
+  vat_rate: number;
   product_categories: { name: string } | null;
 }
 
@@ -66,11 +66,34 @@ const POSPage: React.FC = () => {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
   const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       let hasError = false;
+
+      if (session) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (roleError) {
+          console.error('Error fetching user role:', roleError.message);
+          toast.error('Failed to fetch your user role.');
+          hasError = true;
+        } else {
+          setCurrentUserRole(roleData.role);
+          if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
+            setLoading(false);
+            return; // Exit if not authorized
+          }
+        }
+      } else {
+        setLoading(false);
+        return; // Exit if not logged in
+      }
 
       // Fetch app settings for default currency
       const { data: appSettings, error: settingsError } = await supabase
@@ -158,7 +181,7 @@ const POSPage: React.FC = () => {
     };
 
     fetchData();
-  }, [supabase, searchTerm, selectedCurrencyId]); // Re-fetch if selectedCurrencyId changes
+  }, [supabase, searchTerm, selectedCurrencyId, session]);
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -360,6 +383,17 @@ const POSPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
+      </div>
+    );
+  }
+
+  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
       </div>
     );
   }

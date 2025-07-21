@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer, MoreVertical } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Printer, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface InvoiceItem {
@@ -50,11 +50,11 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  currency_id: string | null; // New field
+  currency_id: string | null;
   invoice_items: InvoiceItem[];
-  client_profile: ClientProfileDetails | null; // Added for separate fetch
-  creator_profile_details: CreatorProfileDetails | null; // Added for separate fetch
-  currency: CurrencyDetails | null; // Joined currency details
+  client_profile: ClientProfileDetails | null;
+  creator_profile_details: CreatorProfileDetails | null;
+  currency: CurrencyDetails | null;
 }
 
 const InvoicesPage: React.FC = () => {
@@ -64,6 +64,7 @@ const InvoicesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -114,8 +115,8 @@ const InvoicesPage: React.FC = () => {
       let clientProfile: ClientProfileDetails | null = null;
       if (invoice.client_id) {
         const { data: clientData, error: clientError } = await supabase
-          .from('profiles_with_auth_emails') // Use the new view
-          .select('id, first_name, last_name, email') // Select email directly
+          .from('profiles_with_auth_emails')
+          .select('id, first_name, last_name, email')
           .eq('id', invoice.client_id)
           .single();
         if (clientError) {
@@ -126,7 +127,7 @@ const InvoicesPage: React.FC = () => {
             id: clientData.id,
             first_name: clientData.first_name,
             last_name: clientData.last_name,
-            email: clientData.email || 'N/A', // Access email directly
+            email: clientData.email || 'N/A',
           };
         }
       }
@@ -161,8 +162,24 @@ const InvoicesPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+    }
     fetchInvoices();
-  }, [supabase, searchTerm, filterStatus]);
+  }, [supabase, searchTerm, filterStatus, session]);
 
   const handleNewInvoiceClick = () => {
     navigate('/invoices/new');
@@ -217,6 +234,9 @@ const InvoicesPage: React.FC = () => {
     }
   };
 
+  const canManageInvoices = currentUserRole === 'worker' || currentUserRole === 'administrator';
+  const canDeleteInvoices = currentUserRole === 'administrator';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -225,13 +245,26 @@ const InvoicesPage: React.FC = () => {
     );
   }
 
+  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Invoices</h1>
-        <Button onClick={handleNewInvoiceClick}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Create New Invoice
-        </Button>
+        {canManageInvoices && (
+          <Button onClick={handleNewInvoiceClick}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New Invoice
+          </Button>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -272,9 +305,11 @@ const InvoicesPage: React.FC = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleViewPrintable(invoice.id)}>
                       <Printer className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleEditInvoiceClick(invoice)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    {canManageInvoices && (
+                      <Button variant="ghost" size="icon" onClick={() => handleEditInvoiceClick(invoice)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -282,24 +317,26 @@ const InvoicesPage: React.FC = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {invoice.status !== 'sent' && invoice.status !== 'paid' && (
+                        {canManageInvoices && invoice.status !== 'sent' && invoice.status !== 'paid' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'sent')}>
                             Mark as Sent
                           </DropdownMenuItem>
                         )}
-                        {invoice.status !== 'paid' && (
+                        {canManageInvoices && invoice.status !== 'paid' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'paid')}>
                             Mark as Paid
                           </DropdownMenuItem>
                         )}
-                        {invoice.status !== 'cancelled' && (
+                        {canManageInvoices && invoice.status !== 'cancelled' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'cancelled')}>
                             Mark as Cancelled
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteInvoice(invoice.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
+                        {canDeleteInvoices && (
+                          <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteInvoice(invoice.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

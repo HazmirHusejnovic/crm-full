@@ -18,7 +18,7 @@ interface Profile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
-  default_currency_id: string | null; // Add new field
+  default_currency_id: string | null;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -36,7 +36,7 @@ const UserManagementPage: React.FC = () => {
   const fetchProfiles = async () => {
     setLoading(true);
     let query = supabase
-      .from('profiles_with_auth_emails') // Use the new view
+      .from('profiles_with_auth_emails')
       .select(`
         id,
         first_name,
@@ -44,7 +44,7 @@ const UserManagementPage: React.FC = () => {
         role,
         email,
         default_currency_id
-      `); // Select email and default_currency_id directly
+      `);
 
     if (searchTerm) {
       query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
@@ -54,7 +54,6 @@ const UserManagementPage: React.FC = () => {
       query = query.eq('role', filterRole);
     }
 
-    // Changed ordering to 'first_name' as 'created_at' does not exist in profiles table
     const { data, error } = await query.order('first_name', { ascending: true });
 
     if (error) {
@@ -135,6 +134,10 @@ const UserManagementPage: React.FC = () => {
     fetchProfiles();
   };
 
+  const canCreateUsers = currentUserRole === 'administrator';
+  const canEditUsers = currentUserRole === 'administrator';
+  const canDeleteUsers = currentUserRole === 'administrator';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -158,19 +161,21 @@ const UserManagementPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">User Management</h1>
-        <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" /> Add New User
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-            </DialogHeader>
-            <UserCreateForm onSuccess={handleFormSuccess} />
-          </DialogContent>
-        </Dialog>
+        {canCreateUsers && (
+          <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" /> Add New User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create New User</DialogTitle>
+              </DialogHeader>
+              <UserCreateForm onSuccess={handleFormSuccess} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -211,10 +216,12 @@ const UserManagementPage: React.FC = () => {
                         <Eye className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    {profile.id !== session?.user?.id && ( // Prevent deleting self
+                    {canEditUsers && (
+                      <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDeleteUsers && profile.id !== session?.user?.id && ( // Prevent deleting self
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(profile.id, profile.email)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>

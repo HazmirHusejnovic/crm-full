@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
-import CurrencySettingsForm from '@/components/CurrencySettingsForm'; // Import new component
+import CurrencySettingsForm from '@/components/CurrencySettingsForm';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -31,7 +31,7 @@ interface AppSettings {
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
-  module_chat_enabled: boolean; // Add new field for Chat module
+  module_chat_enabled: boolean;
   default_currency_id: string | null;
 }
 
@@ -53,7 +53,7 @@ const SettingsPage: React.FC = () => {
       toast.error('Failed to load application settings: ' + error.message);
       setAppSettings(null);
     } else {
-      setAppSettings(data as AppSettings); // Cast to AppSettings
+      setAppSettings(data as AppSettings);
     }
     setLoading(false);
   };
@@ -172,7 +172,7 @@ const SettingsPage: React.FC = () => {
                   { key: 'module_profile_enabled', label: 'Profile Module' },
                   { key: 'module_settings_enabled', label: 'Settings Module' },
                   { key: 'module_wiki_enabled', label: 'Wiki Module' },
-                  { key: 'module_chat_enabled', label: 'Chat Module' }, {/* New Chat Module toggle */}
+                  { key: 'module_chat_enabled', label: 'Chat Module' },
                 ].map((module) => (
                   <div key={module.key} className="flex items-center justify-between space-x-2 p-2 border rounded-md">
                     <Label htmlFor={module.key}>{module.label}</Label>

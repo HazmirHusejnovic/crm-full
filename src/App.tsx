@@ -21,7 +21,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProductsPage from "./pages/ProductsPage";
 import POSPage from "./pages/POSPage";
 import WikiPage from "./pages/WikiPage";
-import ChatPage from "./pages/ChatPage"; // Import the new ChatPage
+import ChatPage from "./pages/ChatPage";
 import { SessionContextProvider, useSession } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -44,7 +44,7 @@ interface AppSettings {
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
-  module_chat_enabled: boolean; // Add new field for Chat module
+  module_chat_enabled: boolean;
 }
 
 // Component to fetch settings and conditionally render routes
@@ -82,7 +82,7 @@ const AppRoutes = () => {
           console.error('Error fetching user role:', roleError.message);
           toast.error('Failed to fetch user role for routing.');
         } else {
-          setCurrentUserRole(roleData.role);
+          setCurrentUserRole(data.role);
         }
       }
       setLoadingSettings(false);
@@ -90,6 +90,17 @@ const AppRoutes = () => {
 
     fetchSettingsAndRole();
   }, [session, supabase]);
+
+  // Helper function to check if a module is enabled and if user has permission
+  const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
+    if (!appSettings) return false; // Should not happen if loading is complete
+    if (!session || !currentUserRole) return false; // User must be logged in and role fetched
+
+    const moduleEnabled = appSettings[moduleKey];
+    const userHasRequiredRole = requiredRoles.includes(currentUserRole);
+
+    return moduleEnabled && userHasRequiredRequiredRole;
+  };
 
   if (loadingSettings) {
     return (
@@ -99,13 +110,6 @@ const AppRoutes = () => {
     );
   }
 
-  // Helper function to check if a module is enabled and if user has permission
-  const isModuleEnabled = (moduleKey: keyof AppSettings, requiresAdmin: boolean = false) => {
-    if (!appSettings) return false; // Should not happen if loading is complete
-    if (requiresAdmin && currentUserRole !== 'administrator') return false;
-    return appSettings[moduleKey];
-  };
-
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -114,10 +118,10 @@ const AppRoutes = () => {
         {isModuleEnabled('module_dashboard_enabled') && <Route path="/dashboard" element={<DashboardPage />} />}
         {isModuleEnabled('module_tasks_enabled') && <Route path="/tasks" element={<TasksPage />} />}
         {isModuleEnabled('module_tickets_enabled') && <Route path="/tickets" element={<TicketsPage />} />}
-        {isModuleEnabled('module_services_enabled') && <Route path="/services" element={<ServicesPage />} />}
-        {isModuleEnabled('module_products_enabled') && <Route path="/products" element={<ProductsPage />} />}
-        {isModuleEnabled('module_pos_enabled') && <Route path="/pos" element={<POSPage />} />}
-        {isModuleEnabled('module_invoices_enabled') && (
+        {isModuleEnabled('module_services_enabled', ['worker', 'administrator']) && <Route path="/services" element={<ServicesPage />} />}
+        {isModuleEnabled('module_products_enabled', ['administrator']) && <Route path="/products" element={<ProductsPage />} />}
+        {isModuleEnabled('module_pos_enabled', ['worker', 'administrator']) && <Route path="/pos" element={<POSPage />} />}
+        {isModuleEnabled('module_invoices_enabled', ['worker', 'administrator']) && (
           <>
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/invoices/new" element={<InvoiceFormPage />} />
@@ -125,17 +129,17 @@ const AppRoutes = () => {
             <Route path="/invoices/print/:id" element={<PrintableInvoice />} />
           </>
         )}
-        {isModuleEnabled('module_reports_enabled') && <Route path="/reports" element={<ReportsPage />} />}
-        {isModuleEnabled('module_users_enabled', true) && (
+        {isModuleEnabled('module_reports_enabled', ['worker', 'administrator']) && <Route path="/reports" element={<ReportsPage />} />}
+        {isModuleEnabled('module_users_enabled', ['administrator']) && (
           <>
             <Route path="/users" element={<UserManagementPage />} />
             <Route path="/clients/:id" element={<ClientDetailsPage />} />
           </>
         )}
         {isModuleEnabled('module_profile_enabled') && <Route path="/profile" element={<ProfilePage />} />}
-        {isModuleEnabled('module_settings_enabled', true) && <Route path="/settings" element={<SettingsPage />} />}
+        {isModuleEnabled('module_settings_enabled', ['administrator']) && <Route path="/settings" element={<SettingsPage />} />}
         {isModuleEnabled('module_wiki_enabled') && <Route path="/wiki" element={<WikiPage />} />}
-        {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />} {/* New Chat Module route */}
+        {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />}
 
         {/* Redirect to dashboard if root path is accessed and user is logged in */}
         {session && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
