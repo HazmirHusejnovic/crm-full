@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Product {
   id: string;
@@ -52,6 +53,10 @@ interface ExchangeRate {
   rate: number;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const POSPage: React.FC = () => {
   const { supabase, session } = useSession();
   const navigate = useNavigate();
@@ -67,51 +72,66 @@ const POSPage: React.FC = () => {
   const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
   const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      let hasError = false;
-
-      if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch your user role.');
-          hasError = true;
-        } else {
-          setCurrentUserRole(roleData.role);
-          if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
-            setLoading(false);
-            return; // Exit if not authorized
-          }
-        }
-      } else {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
         setLoading(false);
-        return; // Exit if not logged in
+        return;
       }
 
-      // Fetch app settings for default currency
-      const { data: appSettings, error: settingsError } = await supabase
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
-        .select('default_currency_id')
+        .select('module_permissions, default_currency_id')
         .eq('id', '00000000-0000-0000-0000-000000000001')
         .single();
 
       if (settingsError) {
-        console.error('Failed to load app settings:', settingsError.message);
+        console.error('Error fetching app settings:', settingsError.message);
         toast.error('Failed to load app settings.');
-        hasError = true;
       } else {
-        setAppDefaultCurrencyId(appSettings?.default_currency_id || null);
+        setAppSettings(settingsData as AppSettings);
+        setAppDefaultCurrencyId(settingsData?.default_currency_id || null);
         if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
-          setSelectedCurrencyId(appSettings?.default_currency_id || null);
+          setSelectedCurrencyId(settingsData?.default_currency_id || null);
         }
       }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+        setLoading(false);
+        return;
+      }
+
+      if (!canViewModule('pos')) {
+        setLoading(false);
+        return; // Exit if not authorized
+      }
+
+      let hasError = false;
 
       // Fetch currencies
       const { data: currenciesData, error: currenciesError } = await supabase
@@ -181,7 +201,7 @@ const POSPage: React.FC = () => {
     };
 
     fetchData();
-  }, [supabase, searchTerm, selectedCurrencyId, session]);
+  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole, canViewModule]);
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -276,6 +296,11 @@ const POSPage: React.FC = () => {
   const handleProcessSale = async () => {
     if (!session?.user?.id) {
       toast.error('User not authenticated. Please log in.');
+      return;
+    }
+
+    if (!canCreate('pos')) {
+      toast.error('You do not have permission to process sales.');
       return;
     }
 
@@ -387,7 +412,7 @@ const POSPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+  if (!canViewModule('pos')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">

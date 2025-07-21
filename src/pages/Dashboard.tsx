@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
 import TaskStatusChart from '@/components/TaskStatusChart';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface DashboardStats {
   openTasks: number;
@@ -18,14 +19,65 @@ interface TaskStatusData {
   fill: string;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const DashboardPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    if (!session) return;
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    if (!session || !appSettings || !currentUserRole) return; // Wait for session, settings, and role
+
+    if (!canViewModule('dashboard')) {
+      setLoading(false);
+      return;
+    }
 
     const fetchDashboardStats = async () => {
       setLoading(true);
@@ -113,12 +165,23 @@ const DashboardPage: React.FC = () => {
     };
 
     fetchDashboardStats();
-  }, [supabase, session]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
+      </div>
+    );
+  }
+
+  if (!canViewModule('dashboard')) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
       </div>
     );
   }

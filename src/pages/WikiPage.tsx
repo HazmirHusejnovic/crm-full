@@ -14,6 +14,7 @@ import WikiCategoryForm from '@/components/WikiCategoryForm';
 import WikiArticleForm from '@/components/WikiArticleForm';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface WikiCategory {
   id: string;
@@ -48,6 +49,10 @@ interface WikiArticleVersion {
   editor_profile: { first_name: string | null; last_name: string | null } | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const WikiPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<WikiCategory[]>([]);
@@ -67,9 +72,55 @@ const WikiPage: React.FC = () => {
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [filterVisibility, setFilterVisibility] = useState<string>('all');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingArticles(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
+      setLoadingCategories(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('wiki_categories')
       .select('*')
@@ -85,6 +136,10 @@ const WikiPage: React.FC = () => {
 
   const fetchArticles = async () => {
     setLoadingArticles(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
+      setLoadingArticles(false);
+      return;
+    }
     let query = supabase
       .from('wiki_articles_with_details')
       .select(`
@@ -149,28 +204,12 @@ const WikiPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-    }
     fetchCategories();
-  }, [supabase, session]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   useEffect(() => {
     fetchArticles();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, currentUserRole]);
+  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -246,12 +285,21 @@ const WikiPage: React.FC = () => {
     fetchArticles();
   };
 
-  const canManageWiki = currentUserRole === 'administrator';
-
   if (loadingCategories || loadingArticles) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
+      </div>
+    );
+  }
+
+  if (!canViewModule('wiki')) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
       </div>
     );
   }
@@ -269,7 +317,7 @@ const WikiPage: React.FC = () => {
         <TabsContent value="articles" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">All Articles</h2>
-            {canManageWiki && (
+            {canCreate('wiki') && (
               <Dialog open={isArticleFormOpen} onOpenChange={setIsArticleFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewArticleClick}>
@@ -335,7 +383,7 @@ const WikiPage: React.FC = () => {
                         <Button variant="ghost" size="icon" onClick={() => handleViewArticleClick(article)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {canManageWiki && (
+                        {canEdit('wiki') && (
                           <>
                             <Button variant="ghost" size="icon" onClick={() => handleEditArticleClick(article)}>
                               <Edit className="h-4 w-4" />
@@ -354,7 +402,7 @@ const WikiPage: React.FC = () => {
                       <p>Visibility: <span className="font-medium capitalize">{article.visibility}</span></p>
                       <p>Created By: <span className="font-medium">{article.creator_first_name} {article.creator_last_name}</span></p>
                       <p>Last Updated: <span className="font-medium">{article.updated_at ? format(new Date(article.updated_at), 'PPP p') : 'N/A'}</span></p>
-                      {canManageWiki && (
+                      {canEdit('wiki') && ( // Assuming view history is part of edit permissions
                         <Button variant="link" size="sm" className="p-0 h-auto mt-2" onClick={() => handleViewVersionHistory(article)}>
                           View History
                         </Button>
@@ -427,7 +475,7 @@ const WikiPage: React.FC = () => {
         <TabsContent value="categories" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">Wiki Categories</h2>
-            {canManageWiki && (
+            {canCreate('wiki') && ( // Using 'wiki' module for category permissions
               <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewCategoryClick}>
@@ -453,7 +501,7 @@ const WikiPage: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                       {category.name}
-                      {canManageWiki && (
+                      {canEdit('wiki') && ( // Using 'wiki' module for category permissions
                         <div className="flex space-x-2">
                           <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
                             <Edit className="h-4 w-4" />

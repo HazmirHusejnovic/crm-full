@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Profile {
   id: string;
@@ -19,6 +20,10 @@ interface Profile {
   role: 'client' | 'worker' | 'administrator';
   email: string;
   default_currency_id: string | null;
+}
+
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -30,11 +35,62 @@ const UserManagementPage: React.FC = () => {
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   const fetchProfiles = async () => {
     setLoading(true);
+    if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+      setLoading(false);
+      return;
+    }
+
+    if (!canViewModule('users')) {
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from('profiles_with_auth_emails')
       .select(`
@@ -67,24 +123,8 @@ const UserManagementPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-      fetchProfiles();
-    }
-  }, [supabase, session, searchTerm, filterRole]);
+    fetchProfiles();
+  }, [supabase, session, searchTerm, filterRole, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
@@ -102,6 +142,11 @@ const UserManagementPage: React.FC = () => {
 
     if (!session?.user?.id) {
       toast.error('User not authenticated.');
+      return;
+    }
+
+    if (!canDelete('users')) {
+      toast.error('You do not have permission to delete users.');
       return;
     }
 
@@ -134,10 +179,6 @@ const UserManagementPage: React.FC = () => {
     fetchProfiles();
   };
 
-  const canCreateUsers = currentUserRole === 'administrator';
-  const canEditUsers = currentUserRole === 'administrator';
-  const canDeleteUsers = currentUserRole === 'administrator';
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -146,7 +187,7 @@ const UserManagementPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') {
+  if (!canViewModule('users')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -161,7 +202,7 @@ const UserManagementPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">User Management</h1>
-        {canCreateUsers && (
+        {canCreate('users') && (
           <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -211,17 +252,17 @@ const UserManagementPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {profile.first_name} {profile.last_name}
                   <div className="flex space-x-2">
-                    {profile.role === 'client' && (
+                    {profile.role === 'client' && canViewModule('users') && ( // Assuming viewing client details is part of user management view
                       <Button variant="ghost" size="icon" onClick={() => handleViewClientDetails(profile.id)}>
                         <Eye className="h-4 w-4" />
                       </Button>
                     )}
-                    {canEditUsers && (
+                    {canEdit('users') && (
                       <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                     )}
-                    {canDeleteUsers && profile.id !== session?.user?.id && ( // Prevent deleting self
+                    {canDelete('users') && profile.id !== session?.user?.id && ( // Prevent deleting self
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(profile.id, profile.email)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>

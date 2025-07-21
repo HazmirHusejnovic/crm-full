@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface ServiceCategory {
   id: string;
@@ -32,6 +33,10 @@ interface Service {
   service_categories: { name: string } | null; // For category name
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ServicesPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -45,9 +50,55 @@ const ServicesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingServices(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('services')) {
+      setLoadingCategories(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('service_categories')
       .select('*')
@@ -63,6 +114,10 @@ const ServicesPage: React.FC = () => {
 
   const fetchServices = async () => {
     setLoadingServices(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('services')) {
+      setLoadingServices(false);
+      return;
+    }
     let query = supabase
       .from('services')
       .select(`
@@ -96,28 +151,12 @@ const ServicesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-    }
     fetchCategories();
-  }, [supabase, session]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   useEffect(() => {
     fetchServices();
-  }, [supabase, searchTerm, filterCategoryId]);
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -182,8 +221,6 @@ const ServicesPage: React.FC = () => {
     fetchServices();
   };
 
-  const canManageServices = currentUserRole === 'administrator'; // Only admins can manage services/categories
-
   if (loadingCategories || loadingServices) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -192,7 +229,7 @@ const ServicesPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+  if (!canViewModule('services')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -216,7 +253,7 @@ const ServicesPage: React.FC = () => {
         <TabsContent value="services" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">All Services</h2>
-            {canManageServices && (
+            {canCreate('services') && (
               <Dialog open={isServiceFormOpen} onOpenChange={setIsServiceFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewServiceClick}>
@@ -268,7 +305,7 @@ const ServicesPage: React.FC = () => {
                     <CardTitle className="flex justify-between items-center">
                       {service.name}
                       <div className="flex space-x-2">
-                        {canManageServices && (
+                        {canEdit('services') && (
                           <>
                             <Button variant="ghost" size="icon" onClick={() => handleEditServiceClick(service)}>
                               <Edit className="h-4 w-4" />
@@ -300,7 +337,7 @@ const ServicesPage: React.FC = () => {
         <TabsContent value="categories" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">Service Categories</h2>
-            {canManageServices && (
+            {canCreate('services') && ( // Using 'services' module for category permissions
               <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewCategoryClick}>
@@ -326,7 +363,7 @@ const ServicesPage: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                       {category.name}
-                      {canManageServices && (
+                      {canEdit('services') && ( // Using 'services' module for category permissions
                         <div className="flex space-x-2">
                           <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
                             <Edit className="h-4 w-4" />

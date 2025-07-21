@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import TicketStatusChart from '@/components/TicketStatusChart';
 import InvoiceStatusChart from '@/components/InvoiceStatusChart';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface TaskStatusData {
   name: string;
@@ -25,6 +26,10 @@ interface InvoiceStatusData {
   fill: string;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ReportsPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [loading, setLoading] = useState(true);
@@ -32,17 +37,16 @@ const ReportsPage: React.FC = () => {
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
   const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    if (!session) {
-      setLoading(false);
-      return;
-    }
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
 
-    const fetchReportData = async () => {
-      setLoading(true);
-      let hasError = false;
-
+      // Fetch user role
       const { data: roleData, error: roleError } = await supabase
         .from('profiles')
         .select('role')
@@ -51,14 +55,41 @@ const ReportsPage: React.FC = () => {
       if (roleError) {
         console.error('Error fetching user role:', roleError.message);
         toast.error('Failed to fetch your user role.');
-        hasError = true;
       } else {
         setCurrentUserRole(roleData.role);
-        if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
-          setLoading(false);
-          return; // Exit if not authorized
-        }
       }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    if (!session || !appSettings || !currentUserRole) return; // Wait for all dependencies
+
+    if (!canViewModule('reports')) {
+      setLoading(false);
+      return; // Exit if not authorized
+    }
+
+    const fetchReportData = async () => {
+      setLoading(true);
+      let hasError = false;
 
       // Fetch all tasks to count by status for the chart
       const { data: allTasks, error: allTasksError } = await supabase
@@ -161,7 +192,7 @@ const ReportsPage: React.FC = () => {
     };
 
     fetchReportData();
-  }, [supabase, session]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
 
   if (loading) {
     return (
@@ -171,7 +202,7 @@ const ReportsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+  if (!canViewModule('reports')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">

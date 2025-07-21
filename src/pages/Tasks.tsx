@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Task {
   id: string;
@@ -24,6 +25,10 @@ interface Task {
   creator_profile: { first_name: string | null; last_name: string | null } | null; // For created_by profile
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const TasksPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -33,9 +38,60 @@ const TasksPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchTasks = async () => {
     setLoading(true);
+    if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+      setLoading(false);
+      return;
+    }
+
+    if (!canViewModule('tasks')) {
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from('tasks')
       .select(`
@@ -70,24 +126,8 @@ const TasksPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-    }
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus, session]);
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);
@@ -123,9 +163,6 @@ const TasksPage: React.FC = () => {
     fetchTasks();
   };
 
-  const canManageTasks = currentUserRole === 'worker' || currentUserRole === 'administrator';
-  const canDeleteTasks = currentUserRole === 'administrator';
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -134,11 +171,22 @@ const TasksPage: React.FC = () => {
     );
   }
 
+  if (!canViewModule('tasks')) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Tasks</h1>
-        {canManageTasks && (
+        {canCreate('tasks') && (
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleNewTaskClick}>
@@ -189,12 +237,12 @@ const TasksPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {task.title}
                   <div className="flex space-x-2">
-                    {canManageTasks && (
+                    {canEdit('tasks') && (
                       <Button variant="ghost" size="icon" onClick={() => handleEditTaskClick(task)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                     )}
-                    {canDeleteTasks && (
+                    {canDelete('tasks') && (
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>

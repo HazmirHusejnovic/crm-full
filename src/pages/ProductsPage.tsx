@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface ProductCategory {
   id: string;
@@ -33,6 +34,10 @@ interface Product {
   product_categories: { name: string } | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ProductsPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -46,9 +51,55 @@ const ProductsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingProducts(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
+      setLoadingCategories(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('product_categories')
       .select('*')
@@ -64,6 +115,10 @@ const ProductsPage: React.FC = () => {
 
   const fetchProducts = async () => {
     setLoadingProducts(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
+      setLoadingProducts(false);
+      return;
+    }
     let query = supabase
       .from('products')
       .select(`
@@ -98,28 +153,12 @@ const ProductsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-    }
     fetchCategories();
-  }, [supabase, session]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   useEffect(() => {
     fetchProducts();
-  }, [supabase, searchTerm, filterCategoryId]);
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -184,8 +223,6 @@ const ProductsPage: React.FC = () => {
     fetchProducts();
   };
 
-  const canManageProducts = currentUserRole === 'administrator'; // Only admins can manage products/categories
-
   if (loadingCategories || loadingProducts) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -194,7 +231,7 @@ const ProductsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') {
+  if (!canViewModule('products')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -218,7 +255,7 @@ const ProductsPage: React.FC = () => {
         <TabsContent value="products" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">All Products</h2>
-            {canManageProducts && (
+            {canCreate('products') && (
               <Dialog open={isProductFormOpen} onOpenChange={setIsProductFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewProductClick}>
@@ -270,7 +307,7 @@ const ProductsPage: React.FC = () => {
                     <CardTitle className="flex justify-between items-center">
                       {product.name}
                       <div className="flex space-x-2">
-                        {canManageProducts && (
+                        {canEdit('products') && (
                           <>
                             <Button variant="ghost" size="icon" onClick={() => handleEditProductClick(product)}>
                               <Edit className="h-4 w-4" />
@@ -303,7 +340,7 @@ const ProductsPage: React.FC = () => {
         <TabsContent value="categories" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold">Product Categories</h2>
-            {canManageProducts && (
+            {canCreate('products') && ( // Using 'products' module for category permissions
               <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewCategoryClick}>
@@ -329,7 +366,7 @@ const ProductsPage: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex justify-between items-center">
                       {category.name}
-                      {canManageProducts && (
+                      {canEdit('products') && ( // Using 'products' module for category permissions
                         <div className="flex space-x-2">
                           <Button variant="ghost" size="icon" onClick={() => handleEditCategoryClick(category)}>
                             <Edit className="h-4 w-4" />

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
 import InvoiceForm from '@/components/InvoiceForm';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface ClientProfile {
   id: string;
@@ -64,6 +65,10 @@ interface ClientInvoice {
   creator_profile_details: CreatorProfileDetails | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ClientDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -74,39 +79,67 @@ const ClientDetailsPage: React.FC = () => {
   const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   // State for dialogs
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
 
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: userRoleData, error: userRoleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (userRoleError) {
+        console.error('Error fetching current user role:', userRoleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(userRoleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   const fetchData = async () => {
-    if (!session?.user?.id || !id) {
+    if (!session?.user?.id || !id || !appSettings || !currentUserRole) {
+      setLoading(false);
+      return;
+    }
+
+    if (!canViewModule('users')) { // Assuming client details page is part of user management module
       setLoading(false);
       return;
     }
 
     setLoading(true);
     let hasError = false;
-
-    // Fetch current user's role for access control
-    const { data: userRoleData, error: userRoleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (userRoleError) {
-      console.error('Error fetching current user role:', userRoleError.message);
-      toast.error('Failed to fetch your user role.');
-      hasError = true;
-    } else {
-      setCurrentUserRole(userRoleData.role);
-      if (userRoleData.role !== 'administrator') {
-        setLoading(false);
-        return;
-      }
-    }
 
     // Fetch client profile
     const { data: profileData, error: profileError } = await supabase
@@ -235,7 +268,7 @@ const ClientDetailsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id, supabase, session]);
+  }, [id, supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -271,10 +304,6 @@ const ClientDetailsPage: React.FC = () => {
     fetchData(); // Re-fetch all data to update lists
   };
 
-  const canCreateTasks = currentUserRole === 'worker' || currentUserRole === 'administrator';
-  const canCreateTickets = currentUserRole === 'client' || currentUserRole === 'worker' || currentUserRole === 'administrator';
-  const canCreateInvoices = currentUserRole === 'worker' || currentUserRole === 'administrator';
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -283,7 +312,7 @@ const ClientDetailsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') {
+  if (!canViewModule('users')) { // Assuming client details page is part of user management module
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -318,7 +347,7 @@ const ClientDetailsPage: React.FC = () => {
           Client Details: {clientProfile.first_name} {clientProfile.last_name}
         </h1>
         <div className="flex space-x-2">
-          {canCreateTasks && (
+          {canCreate('tasks') && (
             <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -343,7 +372,7 @@ const ClientDetailsPage: React.FC = () => {
             </Dialog>
           )}
 
-          {canCreateTickets && (
+          {canCreate('tickets') && (
             <Dialog open={isTicketFormOpen} onOpenChange={setIsTicketFormOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -369,7 +398,7 @@ const ClientDetailsPage: React.FC = () => {
             </Dialog>
           )}
 
-          {canCreateInvoices && (
+          {canCreate('invoices') && (
             <Dialog open={isInvoiceFormOpen} onOpenChange={setIsInvoiceFormOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">

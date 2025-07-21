@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search, Printer, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface InvoiceItem {
   id: string;
@@ -57,6 +58,10 @@ interface Invoice {
   currency: CurrencyDetails | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const InvoicesPage: React.FC = () => {
   const { supabase, session } = useSession();
   const navigate = useNavigate();
@@ -65,9 +70,60 @@ const InvoicesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchInvoices = async () => {
     setLoading(true);
+    if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+      setLoading(false);
+      return;
+    }
+
+    if (!canViewModule('invoices')) {
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from('invoices')
       .select(`
@@ -162,24 +218,8 @@ const InvoicesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
-          setCurrentUserRole(data.role);
-        }
-      };
-      fetchUserRole();
-    }
     fetchInvoices();
-  }, [supabase, searchTerm, filterStatus, session]);
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewInvoiceClick = () => {
     navigate('/invoices/new');
@@ -234,9 +274,6 @@ const InvoicesPage: React.FC = () => {
     }
   };
 
-  const canManageInvoices = currentUserRole === 'worker' || currentUserRole === 'administrator';
-  const canDeleteInvoices = currentUserRole === 'administrator';
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -245,7 +282,7 @@ const InvoicesPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'worker' && currentUserRole !== 'administrator') {
+  if (!canViewModule('invoices')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -260,7 +297,7 @@ const InvoicesPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Invoices</h1>
-        {canManageInvoices && (
+        {canCreate('invoices') && (
           <Button onClick={handleNewInvoiceClick}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Invoice
           </Button>
@@ -305,7 +342,7 @@ const InvoicesPage: React.FC = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleViewPrintable(invoice.id)}>
                       <Printer className="h-4 w-4" />
                     </Button>
-                    {canManageInvoices && (
+                    {canEdit('invoices') && (
                       <Button variant="ghost" size="icon" onClick={() => handleEditInvoiceClick(invoice)}>
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -317,22 +354,22 @@ const InvoicesPage: React.FC = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {canManageInvoices && invoice.status !== 'sent' && invoice.status !== 'paid' && (
+                        {canEdit('invoices') && invoice.status !== 'sent' && invoice.status !== 'paid' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'sent')}>
                             Mark as Sent
                           </DropdownMenuItem>
                         )}
-                        {canManageInvoices && invoice.status !== 'paid' && (
+                        {canEdit('invoices') && invoice.status !== 'paid' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'paid')}>
                             Mark as Paid
                           </DropdownMenuItem>
                         )}
-                        {canManageInvoices && invoice.status !== 'cancelled' && (
+                        {canEdit('invoices') && invoice.status !== 'cancelled' && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'cancelled')}>
                             Mark as Cancelled
                           </DropdownMenuItem>
                         )}
-                        {canDeleteInvoices && (
+                        {canDelete('invoices') && (
                           <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteInvoice(invoice.id)}>
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
