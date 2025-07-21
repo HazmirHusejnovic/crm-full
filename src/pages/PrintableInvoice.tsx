@@ -28,7 +28,7 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { id: string; first_name: string | null; last_name: string | null; email?: string | null } | null; // Client profile, email will be added later
+  profiles: { id: string; first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile
   creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
 }
@@ -87,15 +87,15 @@ const PrintableInvoice: React.FC = () => {
       if (data && data.client_id) {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
-          .select('auth_users:auth.users(email)')
+          .select('users(email)') // Changed to users(email)
           .eq('id', data.client_id)
           .single();
 
         if (userError) {
           console.error('Error fetching client email for printable invoice:', data.id, userError.message);
-          setInvoice({ ...data, profiles: { ...data.profiles, email: 'Error fetching email' } } as Invoice);
+          setInvoice({ ...data, profiles: { ...data.profiles, users: { email: 'Error fetching email' } } } as Invoice);
         } else {
-          setInvoice({ ...data, profiles: { ...data.profiles, email: userData?.auth_users?.email || 'N/A' } } as Invoice);
+          setInvoice({ ...data, profiles: { ...data.profiles, users: { email: userData?.users?.email || 'N/A' } } } as Invoice);
         }
       } else {
         setInvoice(data as Invoice);
@@ -167,7 +167,7 @@ const PrintableInvoice: React.FC = () => {
         <div>
           <h2 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Billed To:</h2>
           <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.first_name} {invoice.profiles?.last_name}</p>
-          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.email}</p>
+          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.users?.email}</p>
           {/* Add client address if available */}
         </div>
         <div className="text-right">

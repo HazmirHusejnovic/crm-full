@@ -33,7 +33,7 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { id: string; first_name: string | null; last_name: string | null; email?: string | null } | null; // Client profile, email will be added later
+  profiles: { id: string; first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile, email will be added later
   creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
 }
@@ -97,15 +97,15 @@ const InvoicesPage: React.FC = () => {
       if (invoice.client_id) {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
-          .select('auth_users:auth.users(email)')
+          .select('users(email)') // Changed to users(email)
           .eq('id', invoice.client_id)
           .single();
 
         if (userError) {
           console.error('Error fetching client email for invoice:', invoice.id, userError.message);
-          return { ...invoice, profiles: { ...invoice.profiles, email: 'Error fetching email' } };
+          return { ...invoice, profiles: { ...invoice.profiles, users: { email: 'Error fetching email' } } };
         } else {
-          return { ...invoice, profiles: { ...invoice.profiles, email: userData?.auth_users?.email || 'N/A' } };
+          return { ...invoice, profiles: { ...invoice.profiles, users: { email: userData?.users?.email || 'N/A' } } };
         }
       }
       return invoice;
@@ -245,7 +245,7 @@ const InvoicesPage: React.FC = () => {
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <p>Client: <span className="font-medium">{invoice.profiles?.first_name} {invoice.profiles?.last_name} ({invoice.profiles?.email})</span></p>
+                  <p>Client: <span className="font-medium">{invoice.profiles?.first_name} {invoice.profiles?.last_name} ({invoice.profiles?.users?.email})</span></p>
                   <p>Issue Date: <span className="font-medium">{format(new Date(invoice.issue_date), 'PPP')}</span></p>
                   <p>Due Date: <span className="font-medium">{format(new Date(invoice.due_date), 'PPP')}</span></p>
                   <p>Total: <span className="font-medium flex items-center"><DollarSign className="h-3 w-3 mr-1" />{invoice.total_amount.toFixed(2)}</span></p>
