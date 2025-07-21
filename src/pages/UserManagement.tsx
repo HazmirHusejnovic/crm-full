@@ -3,9 +3,11 @@ import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input'; // Import Input for search
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
-import { Edit } from 'lucide-react';
+import { Edit, Search } from 'lucide-react'; // Import Search icon
 
 interface Profile {
   id: string;
@@ -22,11 +24,13 @@ const UserManagementPage: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
+  const [filterRole, setFilterRole] = useState<string>('all'); // New state for role filter
 
   const fetchProfiles = async () => {
     setLoading(true);
     // Fetch profiles and join with auth.users to get email
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
       .select(`
         id,
@@ -34,8 +38,17 @@ const UserManagementPage: React.FC = () => {
         last_name,
         role,
         auth_users:auth.users(email)
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    if (searchTerm) {
+      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,auth_users.email.ilike.%${searchTerm}%`);
+    }
+
+    if (filterRole !== 'all') {
+      query = query.eq('role', filterRole);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       toast.error('Failed to load profiles: ' + error.message);
@@ -67,9 +80,9 @@ const UserManagementPage: React.FC = () => {
         }
       };
       fetchUserRole();
-      fetchProfiles();
+      fetchProfiles(); // Initial fetch
     }
-  }, [supabase, session]);
+  }, [supabase, session, searchTerm, filterRole]); // Re-fetch when search term or filter role changes
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
@@ -100,6 +113,29 @@ const UserManagementPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">User Management</h1>
+      </div>
+
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select onValueChange={setFilterRole} defaultValue={filterRole}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filter by Role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="client">Client</SelectItem>
+            <SelectItem value="worker">Worker</SelectItem>
+            <SelectItem value="administrator">Administrator</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
