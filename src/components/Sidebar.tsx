@@ -19,21 +19,22 @@ import {
   Settings,
   Package,
   ShoppingCart,
-  BookOpen, // Import BookOpen icon for Wiki
+  BookOpen,
+  MessageSquare, // Import MessageSquare icon for Chat
 } from 'lucide-react';
 import { toast } from 'sonner';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Dodato: Import LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface NavLinkProps {
   to: string;
   icon: React.ElementType;
   label: string;
   isActive: boolean;
-  isVisible: boolean; // New prop for visibility
+  isVisible: boolean;
 }
 
 const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isActive, isVisible }) => {
-  if (!isVisible) return null; // Don't render if not visible
+  if (!isVisible) return null;
 
   return (
     <Button
@@ -64,7 +65,8 @@ interface AppSettings {
   module_users_enabled: boolean;
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
-  module_wiki_enabled: boolean; // Add new field for Wiki module
+  module_wiki_enabled: boolean;
+  module_chat_enabled: boolean; // Add new field for Chat module
 }
 
 const Sidebar: React.FC = () => {
@@ -200,7 +202,14 @@ const Sidebar: React.FC = () => {
               label="Wiki"
               isActive={location.pathname === '/wiki'}
               isVisible={appSettings?.module_wiki_enabled || false}
-            /> {/* New Wiki Module link */}
+            />
+            <NavLink
+              to="/chat"
+              icon={MessageSquare}
+              label="Chat"
+              isActive={location.pathname === '/chat'}
+              isVisible={appSettings?.module_chat_enabled || false}
+            /> {/* New Chat Module link */}
             {userRole === 'administrator' && (
               <NavLink
                 to="/users"

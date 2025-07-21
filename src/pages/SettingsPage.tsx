@@ -30,8 +30,9 @@ interface AppSettings {
   module_users_enabled: boolean;
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
-  module_wiki_enabled: boolean; // Add new field for Wiki module
-  default_currency_id: string | null; // Add new field
+  module_wiki_enabled: boolean;
+  module_chat_enabled: boolean; // Add new field for Chat module
+  default_currency_id: string | null;
 }
 
 const SettingsPage: React.FC = () => {
@@ -170,7 +171,8 @@ const SettingsPage: React.FC = () => {
                   { key: 'module_users_enabled', label: 'User Management Module' },
                   { key: 'module_profile_enabled', label: 'Profile Module' },
                   { key: 'module_settings_enabled', label: 'Settings Module' },
-                  { key: 'module_wiki_enabled', label: 'Wiki Module' }, {/* New Wiki Module toggle */}
+                  { key: 'module_wiki_enabled', label: 'Wiki Module' },
+                  { key: 'module_chat_enabled', label: 'Chat Module' }, {/* New Chat Module toggle */}
                 ].map((module) => (
                   <div key={module.key} className="flex items-center justify-between space-x-2 p-2 border rounded-md">
                     <Label htmlFor={module.key}>{module.label}</Label>

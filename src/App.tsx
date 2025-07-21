@@ -20,7 +20,8 @@ import PrintableInvoice from "./pages/PrintableInvoice";
 import SettingsPage from "./pages/SettingsPage";
 import ProductsPage from "./pages/ProductsPage";
 import POSPage from "./pages/POSPage";
-import WikiPage from "./pages/WikiPage"; // Import the new WikiPage
+import WikiPage from "./pages/WikiPage";
+import ChatPage from "./pages/ChatPage"; // Import the new ChatPage
 import { SessionContextProvider, useSession } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -42,7 +43,8 @@ interface AppSettings {
   module_users_enabled: boolean;
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
-  module_wiki_enabled: boolean; // Add new field for Wiki module
+  module_wiki_enabled: boolean;
+  module_chat_enabled: boolean; // Add new field for Chat module
 }
 
 // Component to fetch settings and conditionally render routes
@@ -132,7 +134,8 @@ const AppRoutes = () => {
         )}
         {isModuleEnabled('module_profile_enabled') && <Route path="/profile" element={<ProfilePage />} />}
         {isModuleEnabled('module_settings_enabled', true) && <Route path="/settings" element={<SettingsPage />} />}
-        {isModuleEnabled('module_wiki_enabled') && <Route path="/wiki" element={<WikiPage />} />} {/* New Wiki Module route */}
+        {isModuleEnabled('module_wiki_enabled') && <Route path="/wiki" element={<WikiPage />} />}
+        {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />} {/* New Chat Module route */}
 
         {/* Redirect to dashboard if root path is accessed and user is logged in */}
         {session && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
