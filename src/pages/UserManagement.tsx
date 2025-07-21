@@ -42,11 +42,11 @@ const UserManagementPage: React.FC = () => {
         first_name,
         last_name,
         role,
-        users(email)
+        auth_users:auth.users(email)
       `);
 
     if (searchTerm) {
-      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,users.email.ilike.%${searchTerm}%`);
+      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,auth_users.email.ilike.%${searchTerm}%`);
     }
 
     if (filterRole !== 'all') {
@@ -63,7 +63,7 @@ const UserManagementPage: React.FC = () => {
         first_name: p.first_name,
         last_name: p.last_name,
         role: p.role,
-        email: p.users?.email || 'N/A',
+        email: p.auth_users?.email || 'N/A',
       }));
       setProfiles(formattedProfiles);
     }
