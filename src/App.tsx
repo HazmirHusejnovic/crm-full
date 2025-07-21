@@ -11,7 +11,8 @@ import TicketsPage from "./pages/Tickets";
 import ServicesPage from "./pages/Services";
 import UserManagementPage from "./pages/UserManagement";
 import DashboardPage from "./pages/Dashboard";
-import ProfilePage from "./pages/ProfilePage"; // Import the new Profile page
+import ProfilePage from "./pages/ProfilePage";
+import InvoicesPage from "./pages/Invoices"; // Import the new Invoices page
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -35,7 +36,8 @@ const App = () => (
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/users" element={<UserManagementPage />} />
-                <Route path="/profile" element={<ProfilePage />} /> {/* New Profile route */}
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/invoices" element={<InvoicesPage />} /> {/* New Invoices route */}
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

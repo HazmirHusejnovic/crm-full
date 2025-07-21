@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } => 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,7 +13,8 @@ import {
   Briefcase,
   Users,
   LogOut,
-  User, // Import User icon for profile
+  User,
+  ReceiptText, // Import ReceiptText icon for invoices
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -106,6 +107,12 @@ const Sidebar: React.FC = () => {
               icon={Briefcase}
               label="Services"
               isActive={location.pathname === '/services'}
+            />
+            <NavLink
+              to="/invoices"
+              icon={ReceiptText}
+              label="Invoices"
+              isActive={location.pathname === '/invoices'}
             />
             {userRole === 'administrator' && (
               <NavLink
