@@ -22,6 +22,7 @@ interface Product {
   price: number;
   stock_quantity: number;
   sku: string | null;
+  vat_rate: number; // Added vat_rate
   product_categories: { name: string } | null;
 }
 
@@ -45,7 +46,7 @@ const POSPage: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash'); // New state for payment method
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -59,6 +60,7 @@ const POSPage: React.FC = () => {
           price,
           stock_quantity,
           sku,
+          vat_rate,
           product_categories(name)
         `)
         .order('name', { ascending: true });
@@ -141,9 +143,8 @@ const POSPage: React.FC = () => {
   };
 
   const calculateItemTotal = (item: CartItem) => {
-    // Assuming VAT rate is 0 for products in POS for simplicity, or can be added to product schema
-    // For now, let's assume no VAT calculation here, just price * quantity
-    return item.price * item.quantity;
+    // Calculate total including VAT
+    return item.price * item.quantity * (1 + item.vat_rate);
   };
 
   const calculateTotal = () => {
@@ -180,9 +181,6 @@ const POSPage: React.FC = () => {
           total_amount: totalAmount,
           status: 'paid', // Mark as paid for immediate POS sale
           created_by: session.user.id,
-          // If you want to store the payment method in the database,
-          // you would need to add a 'payment_method' column to your 'invoices' table.
-          // For example: payment_method: selectedPaymentMethod,
         })
         .select('id')
         .single();
@@ -200,7 +198,7 @@ const POSPage: React.FC = () => {
         description: item.name,
         quantity: item.quantity,
         unit_price: item.price,
-        vat_rate: 0, // Assuming 0 VAT for simplicity in POS, adjust if needed
+        vat_rate: item.vat_rate, // Use product's VAT rate
         total: calculateItemTotal(item),
       }));
 
@@ -296,6 +294,7 @@ const POSPage: React.FC = () => {
                     <p>Stock: <span className={`font-medium ${product.stock_quantity <= 5 && product.stock_quantity > 0 ? 'text-orange-500' : product.stock_quantity === 0 ? 'text-red-500' : 'text-green-600'}`}>{product.stock_quantity}</span></p>
                     <p>Category: <span className="font-medium">{product.product_categories?.name || 'N/A'}</span></p>
                     <p>SKU: <span className="font-medium">{product.sku || 'N/A'}</span></p>
+                    <p>VAT Rate: <span className="font-medium">{(product.vat_rate * 100).toFixed(2)}%</span></p>
                   </div>
                 </CardContent>
               </Card>
@@ -353,18 +352,11 @@ const POSPage: React.FC = () => {
                     <div>
                       <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        ${item.price.toFixed(2)} x
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))}
-                          className="w-16 inline-block mx-2 text-center"
-                        />
+                        ${item.price.toFixed(2)} x {item.quantity} (VAT: {(item.vat_rate * 100).toFixed(2)}%)
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <p className="font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="font-semibold">${calculateItemTotal(item).toFixed(2)}</p>
                       <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.id)}>
                         <XCircle className="h-4 w-4 text-red-500" />
                       </Button>
@@ -372,7 +364,7 @@ const POSPage: React.FC = () => {
                   </div>
                 ))}
                 <div className="flex justify-between items-center pt-4 border-t">
-                  <span className="text-lg font-bold">Total:</span>
+                  <span className="text-lg font-bold">Total (incl. VAT):</span>
                   <span className="text-xl font-bold">${calculateTotal().toFixed(2)}</span>
                 </div>
                 <Button onClick={handleProcessSale} className="w-full mt-4">

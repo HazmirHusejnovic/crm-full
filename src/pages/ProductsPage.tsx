@@ -28,6 +28,7 @@ interface Product {
   stock_quantity: number;
   category_id: string | null;
   sku: string | null;
+  vat_rate: number; // Added vat_rate
   created_at: string;
   product_categories: { name: string } | null; // For category name
 }
@@ -73,6 +74,7 @@ const ProductsPage: React.FC = () => {
         stock_quantity,
         category_id,
         sku,
+        vat_rate,
         created_at,
         product_categories(name)
       `);
@@ -280,6 +282,7 @@ const ProductsPage: React.FC = () => {
                       <p>Stock: <span className={`font-medium ${product.stock_quantity <= 5 && product.stock_quantity > 0 ? 'text-orange-500' : product.stock_quantity === 0 ? 'text-red-500' : 'text-green-600'}`}>{product.stock_quantity}</span></p>
                       <p>Category: <span className="font-medium">{product.product_categories?.name || 'N/A'}</span></p>
                       <p>SKU: <span className="font-medium">{product.sku || 'N/A'}</span></p>
+                      <p>VAT Rate: <span className="font-medium">{(product.vat_rate * 100).toFixed(2)}%</span></p>
                       <p>Created At: {format(new Date(product.created_at), 'PPP p')}</p>
                     </div>
                   </CardContent>

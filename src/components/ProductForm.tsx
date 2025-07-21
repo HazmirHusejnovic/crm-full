@@ -36,6 +36,10 @@ const productFormSchema = z.object({
   ),
   category_id: z.string().uuid().nullable().optional(), // Allow null for no category
   sku: z.string().optional().nullable(),
+  vat_rate: z.preprocess( // New VAT rate field
+    (val) => parseFloat(String(val)),
+    z.number().min(0).max(1, { message: 'VAT rate must be between 0 and 1 (e.g., 0.17 for 17%).' })
+  ),
 });
 
 type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -63,6 +67,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
       stock_quantity: initialData?.stock_quantity || 0,
       category_id: initialData?.category_id || null,
       sku: initialData?.sku || '',
+      vat_rate: initialData?.vat_rate || 0.17, // Default VAT rate
     },
   });
 
@@ -193,6 +198,19 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Stock Quantity</FormLabel>
               <FormControl>
                 <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(e.target.value)} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="vat_rate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>VAT Rate (e.g., 0.17 for 17%)</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
