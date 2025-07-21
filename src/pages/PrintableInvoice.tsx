@@ -18,6 +18,18 @@ interface InvoiceItem {
   services: { name: string } | null;
 }
 
+interface ClientProfileDetails {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+}
+
+interface CreatorProfileDetails {
+  first_name: string | null;
+  last_name: string | null;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -28,9 +40,9 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { id: string; first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile
-  creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
+  client_profile: ClientProfileDetails | null; // Added for separate fetch
+  creator_profile_details: CreatorProfileDetails | null; // Added for separate fetch
 }
 
 const PrintableInvoice: React.FC = () => {
@@ -61,8 +73,6 @@ const PrintableInvoice: React.FC = () => {
           status,
           created_by,
           created_at,
-          profiles!invoices_client_id_fkey(id, first_name, last_name),
-          creator_profile:profiles!invoices_created_by_fkey(first_name, last_name),
           invoice_items(
             id,
             description,
@@ -84,21 +94,50 @@ const PrintableInvoice: React.FC = () => {
         return;
       }
 
-      if (data && data.client_id) {
-        const { data: userData, error: userError } = await supabase
-          .from('profiles')
-          .select('users(email)') // Changed to users(email)
-          .eq('id', data.client_id)
-          .single();
-
-        if (userError) {
-          console.error('Error fetching client email for printable invoice:', data.id, userError.message);
-          setInvoice({ ...data, profiles: { ...data.profiles, users: { email: 'Error fetching email' } } } as Invoice);
-        } else {
-          setInvoice({ ...data, profiles: { ...data.profiles, users: { email: userData?.users?.email || 'N/A' } } } as Invoice);
+      if (data) {
+        let clientProfile: ClientProfileDetails | null = null;
+        if (data.client_id) {
+          const { data: clientData, error: clientError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, users(email)')
+            .eq('id', data.client_id)
+            .single();
+          if (clientError) {
+            console.error('Error fetching client profile for printable invoice:', data.id, clientError.message);
+            clientProfile = { id: data.client_id, first_name: 'Error', last_name: 'Fetching', email: 'Error fetching email' };
+          } else {
+            clientProfile = {
+              id: clientData.id,
+              first_name: clientData.first_name,
+              last_name: clientData.last_name,
+              email: clientData.users?.email || 'N/A',
+            };
+          }
         }
-      } else {
-        setInvoice(data as Invoice);
+
+        let creatorProfileDetails: CreatorProfileDetails | null = null;
+        if (data.created_by) {
+          const { data: creatorData, error: creatorError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', data.created_by)
+            .single();
+          if (creatorError) {
+            console.error('Error fetching creator profile for printable invoice:', data.id, creatorError.message);
+            creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
+          } else {
+            creatorProfileDetails = {
+              first_name: creatorData.first_name,
+              last_name: creatorData.last_name,
+            };
+          }
+        }
+
+        setInvoice({
+          ...data,
+          client_profile: clientProfile,
+          creator_profile_details: creatorProfileDetails,
+        } as Invoice);
       }
       setLoading(false);
     };
@@ -108,10 +147,9 @@ const PrintableInvoice: React.FC = () => {
 
   useEffect(() => {
     if (!loading && invoice) {
-      // Automatically trigger print dialog after content is loaded
       const timer = setTimeout(() => {
         window.print();
-      }, 500); // Small delay to ensure rendering
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [loading, invoice]);
@@ -166,16 +204,15 @@ const PrintableInvoice: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
         <div>
           <h2 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Billed To:</h2>
-          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.first_name} {invoice.profiles?.last_name}</p>
-          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.users?.email}</p>
-          {/* Add client address if available */}
+          <p className="text-gray-700 dark:text-gray-300">{invoice.client_profile?.first_name} {invoice.client_profile?.last_name}</p>
+          <p className="text-gray-700 dark:text-gray-300">{invoice.client_profile?.email}</p>
         </div>
         <div className="text-right">
           <h2 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Invoice Details:</h2>
           <p className="text-gray-700 dark:text-gray-300">Issue Date: {format(new Date(invoice.issue_date), 'PPP')}</p>
           <p className="text-gray-700 dark:text-gray-300">Due Date: {format(new Date(invoice.due_date), 'PPP')}</p>
           <p className="text-gray-700 dark:text-gray-300">Status: <span className={`font-semibold capitalize ${getStatusColor(invoice.status)}`}>{invoice.status}</span></p>
-          <p className="text-gray-700 dark:text-gray-300">Created By: {invoice.creator_profile?.first_name} {invoice.creator_profile?.last_name}</p>
+          <p className="text-gray-700 dark:text-gray-300">Created By: {invoice.creator_profile_details?.first_name} {invoice.creator_profile_details?.last_name}</p>
         </div>
       </div>
 
@@ -220,7 +257,6 @@ const PrintableInvoice: React.FC = () => {
 
       <div className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
         <p>Thank you for your business!</p>
-        {/* Add company details here */}
       </div>
     </div>
   );

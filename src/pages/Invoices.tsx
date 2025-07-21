@@ -9,8 +9,8 @@ import InvoiceForm from '@/components/InvoiceForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer } from 'lucide-react'; // Import Printer icon
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface InvoiceItem {
   id: string;
@@ -23,6 +23,18 @@ interface InvoiceItem {
   services: { name: string } | null;
 }
 
+interface ClientProfileDetails {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+}
+
+interface CreatorProfileDetails {
+  first_name: string | null;
+  last_name: string | null;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -33,14 +45,14 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { id: string; first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile, email will be added later
-  creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
+  client_profile: ClientProfileDetails | null; // Added for separate fetch
+  creator_profile_details: CreatorProfileDetails | null; // Added for separate fetch
 }
 
 const InvoicesPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -62,8 +74,6 @@ const InvoicesPage: React.FC = () => {
         status,
         created_by,
         created_at,
-        profiles!invoices_client_id_fkey(id, first_name, last_name),
-        creator_profile:profiles!invoices_created_by_fkey(first_name, last_name),
         invoice_items(
           id,
           description,
@@ -92,26 +102,54 @@ const InvoicesPage: React.FC = () => {
       return;
     }
 
-    // Now fetch emails for each client_id
-    const invoicesWithEmails = await Promise.all(data.map(async (invoice) => {
+    // Fetch client and creator profiles separately
+    const invoicesWithDetails = await Promise.all(data.map(async (invoice: any) => {
+      let clientProfile: ClientProfileDetails | null = null;
       if (invoice.client_id) {
-        const { data: userData, error: userError } = await supabase
+        const { data: clientData, error: clientError } = await supabase
           .from('profiles')
-          .select('users(email)') // Changed to users(email)
+          .select('id, first_name, last_name, users(email)')
           .eq('id', invoice.client_id)
           .single();
-
-        if (userError) {
-          console.error('Error fetching client email for invoice:', invoice.id, userError.message);
-          return { ...invoice, profiles: { ...invoice.profiles, users: { email: 'Error fetching email' } } };
+        if (clientError) {
+          console.error('Error fetching client profile for invoice:', invoice.id, clientError.message);
+          clientProfile = { id: invoice.client_id, first_name: 'Error', last_name: 'Fetching', email: 'Error fetching email' };
         } else {
-          return { ...invoice, profiles: { ...invoice.profiles, users: { email: userData?.users?.email || 'N/A' } } };
+          clientProfile = {
+            id: clientData.id,
+            first_name: clientData.first_name,
+            last_name: clientData.last_name,
+            email: clientData.users?.email || 'N/A',
+          };
         }
       }
-      return invoice;
+
+      let creatorProfileDetails: CreatorProfileDetails | null = null;
+      if (invoice.created_by) {
+        const { data: creatorData, error: creatorError } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', invoice.created_by)
+          .single();
+        if (creatorError) {
+          console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
+          creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
+        } else {
+          creatorProfileDetails = {
+            first_name: creatorData.first_name,
+            last_name: creatorData.last_name,
+          };
+        }
+      }
+
+      return {
+        ...invoice,
+        client_profile: clientProfile,
+        creator_profile_details: creatorProfileDetails,
+      };
     }));
 
-    setInvoices(invoicesWithEmails as Invoice[]);
+    setInvoices(invoicesWithDetails as Invoice[]);
     setLoading(false);
   };
 
@@ -245,12 +283,12 @@ const InvoicesPage: React.FC = () => {
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <p>Client: <span className="font-medium">{invoice.profiles?.first_name} {invoice.profiles?.last_name} ({invoice.profiles?.users?.email})</span></p>
+                  <p>Client: <span className="font-medium">{invoice.client_profile?.first_name} {invoice.client_profile?.last_name} ({invoice.client_profile?.email})</span></p>
                   <p>Issue Date: <span className="font-medium">{format(new Date(invoice.issue_date), 'PPP')}</span></p>
                   <p>Due Date: <span className="font-medium">{format(new Date(invoice.due_date), 'PPP')}</span></p>
                   <p>Total: <span className="font-medium flex items-center"><DollarSign className="h-3 w-3 mr-1" />{invoice.total_amount.toFixed(2)}</span></p>
                   <p>Status: <span className={`font-medium capitalize ${getStatusColor(invoice.status)}`}>{invoice.status}</span></p>
-                  <p>Created By: <span className="font-medium">{invoice.creator_profile?.first_name} {invoice.creator_profile?.last_name}</span></p>
+                  <p>Created By: <span className="font-medium">{invoice.creator_profile_details?.first_name} {invoice.creator_profile_details?.last_name}</span></p>
                   <p className="mt-2 font-semibold">Items:</p>
                   <ul className="list-disc list-inside text-xs ml-2">
                     {invoice.invoice_items.map(item => (

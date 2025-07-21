@@ -41,6 +41,11 @@ interface ClientTicket {
   tasks: { title: string | null } | null; // For linked_task
 }
 
+interface CreatorProfileDetails {
+  first_name: string | null;
+  last_name: string | null;
+}
+
 interface ClientInvoice {
   id: string;
   invoice_number: string;
@@ -50,7 +55,7 @@ interface ClientInvoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_at: string;
   created_by: string;
-  creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
+  creator_profile_details: CreatorProfileDetails | null; // Changed to separate fetch
 }
 
 const ClientDetailsPage: React.FC = () => {
@@ -89,7 +94,7 @@ const ClientDetailsPage: React.FC = () => {
         setCurrentUserRole(userRoleData.role);
         if (userRoleData.role !== 'administrator') {
           setLoading(false);
-          return; // Prevent further fetching if not admin
+          return;
         }
       }
 
@@ -101,7 +106,7 @@ const ClientDetailsPage: React.FC = () => {
           first_name,
           last_name,
           role,
-          auth_users:auth.users(email)
+          users(email)
         `)
         .eq('id', id)
         .single();
@@ -115,7 +120,7 @@ const ClientDetailsPage: React.FC = () => {
           first_name: profileData.first_name,
           last_name: profileData.last_name,
           role: profileData.role,
-          email: profileData.auth_users?.email || 'N/A',
+          email: profileData.users?.email || 'N/A',
         });
       }
 
@@ -179,8 +184,7 @@ const ClientDetailsPage: React.FC = () => {
           total_amount,
           status,
           created_at,
-          created_by,
-          creator_profile:profiles!invoices_created_by_fkey(first_name, last_name)
+          created_by
         `)
         .eq('client_id', id)
         .order('created_at', { ascending: false });
@@ -189,7 +193,28 @@ const ClientDetailsPage: React.FC = () => {
         toast.error('Failed to load client invoices: ' + invoicesError.message);
         hasError = true;
       } else {
-        setClientInvoices(invoicesData as ClientInvoice[]);
+        // Fetch creator profile for each invoice separately
+        const invoicesWithCreatorDetails = await Promise.all(invoicesData.map(async (invoice: any) => {
+          let creatorProfileDetails: CreatorProfileDetails | null = null;
+          if (invoice.created_by) {
+            const { data: creatorData, error: creatorError } = await supabase
+              .from('profiles')
+              .select('first_name, last_name')
+              .eq('id', invoice.created_by)
+              .single();
+            if (creatorError) {
+              console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
+              creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
+            } else {
+              creatorProfileDetails = {
+                first_name: creatorData.first_name,
+                last_name: creatorData.last_name,
+              };
+            }
+          }
+          return { ...invoice, creator_profile_details: creatorProfileDetails };
+        }));
+        setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
       }
 
       setLoading(false);
@@ -267,7 +292,7 @@ const ClientDetailsPage: React.FC = () => {
         <h1 className="text-3xl font-bold">
           Client Details: {clientProfile.first_name} {clientProfile.last_name}
         </h1>
-        <div></div> {/* Placeholder for alignment */}
+        <div></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -281,7 +306,6 @@ const ClientDetailsPage: React.FC = () => {
               <Mail className="h-4 w-4 mr-2" /> {clientProfile.email}
             </p>
             <p className="text-sm text-muted-foreground">Role: <span className="capitalize">{clientProfile.role}</span></p>
-            {/* Add more profile details here if available, e.g., phone, address */}
           </CardContent>
         </Card>
 
@@ -407,7 +431,7 @@ const ClientDetailsPage: React.FC = () => {
                       <p>Status: <span className={`font-medium capitalize ${getStatusColor(invoice.status)}`}>{invoice.status}</span></p>
                       <p>Issue Date: {format(new Date(invoice.issue_date), 'PPP')}</p>
                       <p>Due Date: {format(new Date(invoice.due_date), 'PPP')}</p>
-                      <p>Created By: {invoice.creator_profile?.first_name} {invoice.creator_profile?.last_name}</p>
+                      <p>Created By: {invoice.creator_profile_details?.first_name} {invoice.creator_profile_details?.last_name}</p>
                       <p>Created At: {format(new Date(invoice.created_at), 'PPP')}</p>
                     </CardContent>
                   </Card>
