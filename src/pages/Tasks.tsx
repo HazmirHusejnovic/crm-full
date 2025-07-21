@@ -3,10 +3,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TaskForm from '@/components/TaskForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -27,10 +29,12 @@ const TasksPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const fetchTasks = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('tasks')
       .select(`
         id,
@@ -43,8 +47,17 @@ const TasksPage: React.FC = () => {
         created_at,
         profiles!tasks_assigned_to_fkey(first_name, last_name),
         creator_profile:profiles!tasks_created_by_fkey(first_name, last_name)
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    if (searchTerm) {
+      query = query.ilike('title', `%${searchTerm}%`);
+    }
+
+    if (filterStatus !== 'all') {
+      query = query.eq('status', filterStatus);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       toast.error('Failed to load tasks: ' + error.message);
@@ -56,7 +69,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [supabase]);
+  }, [supabase, searchTerm, filterStatus]); // Re-fetch when search term or filter status changes
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);
@@ -113,6 +126,30 @@ const TasksPage: React.FC = () => {
             <TaskForm initialData={editingTask} onSuccess={handleFormSuccess} />
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tasks by title..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select onValueChange={setFilterStatus} defaultValue={filterStatus}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filter by Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
