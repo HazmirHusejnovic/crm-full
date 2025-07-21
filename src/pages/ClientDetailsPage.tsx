@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { format } from 'date-fns';
-import { ArrowLeft, ListTodo, Ticket, ReceiptText, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, ListTodo, Ticket, ReceiptText, Mail, PlusCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import TaskForm from '@/components/TaskForm';
+import TicketForm from '@/components/TicketForm';
+import InvoiceForm from '@/components/InvoiceForm';
 
 interface ClientProfile {
   id: string;
@@ -69,70 +73,72 @@ const ClientDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
+  const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
+  const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
+
+  const fetchData = async () => {
     if (!session?.user?.id || !id) {
       setLoading(false);
       return;
     }
 
-    const fetchData = async () => {
-      setLoading(true);
-      let hasError = false;
+    setLoading(true);
+    let hasError = false;
 
-      // Fetch current user's role for access control
-      const { data: userRoleData, error: userRoleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
+    // Fetch current user's role for access control
+    const { data: userRoleData, error: userRoleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
 
-      if (userRoleError) {
-        console.error('Error fetching current user role:', userRoleError.message);
-        toast.error('Failed to fetch your user role.');
-        hasError = true;
-      } else {
-        setCurrentUserRole(userRoleData.role);
-        if (userRoleData.role !== 'administrator') {
-          setLoading(false);
-          return;
-        }
+    if (userRoleError) {
+      console.error('Error fetching current user role:', userRoleError.message);
+      toast.error('Failed to fetch your user role.');
+      hasError = true;
+    } else {
+      setCurrentUserRole(userRoleData.role);
+      if (userRoleData.role !== 'administrator') {
+        setLoading(false);
+        return;
       }
+    }
 
-      // Fetch client profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select(`
+    // Fetch client profile
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select(`
           id,
           first_name,
           last_name,
           role
-        `) // Removed users(email) from here
-        .eq('id', id)
+        `)
+      .eq('id', id)
+      .single();
+
+    if (profileError) {
+      toast.error('Failed to load client profile: ' + profileError.message);
+      hasError = true;
+    } else if (profileData) {
+      const { data: userData, error: userEmailError } = await supabase
+        .from('profiles')
+        .select('users(email)')
+        .eq('id', profileData.id)
         .single();
 
-      if (profileError) {
-        toast.error('Failed to load client profile: ' + profileError.message);
-        hasError = true;
-      } else if (profileData) {
-        // Now fetch email separately for this single profile
-        const { data: userData, error: userEmailError } = await supabase
-          .from('profiles') // Querying profiles again to get the joined auth.users email
-          .select('users(email)')
-          .eq('id', profileData.id)
-          .single();
-
-        if (userEmailError) {
-          console.error('Error fetching email for client profile:', profileData.id, userEmailError.message);
-          setClientProfile({ ...profileData, email: 'Error fetching email' });
-        } else {
-          setClientProfile({ ...profileData, email: userData?.users?.email || 'N/A' });
-        }
+      if (userEmailError) {
+        console.error('Error fetching email for client profile:', profileData.id, userEmailError.message);
+        setClientProfile({ ...profileData, email: 'Error fetching email' });
+      } else {
+        setClientProfile({ ...profileData, email: userData?.users?.email || 'N/A' });
       }
+    }
 
-      // Fetch client's tasks (created by or assigned to)
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select(`
+    // Fetch client's tasks (created by or assigned to)
+    const { data: tasksData, error: tasksError } = await supabase
+      .from('tasks')
+      .select(`
           id,
           title,
           status,
@@ -143,20 +149,20 @@ const ClientDetailsPage: React.FC = () => {
           profiles!tasks_assigned_to_fkey(first_name, last_name),
           creator_profile:profiles!tasks_created_by_fkey(first_name, last_name)
         `)
-        .or(`created_by.eq.${id},assigned_to.eq.${id}`)
-        .order('created_at', { ascending: false });
+      .or(`created_by.eq.${id},assigned_to.eq.${id}`)
+      .order('created_at', { ascending: false });
 
-      if (tasksError) {
-        toast.error('Failed to load client tasks: ' + tasksError.message);
-        hasError = true;
-      } else {
-        setClientTasks(tasksData as ClientTask[]);
-      }
+    if (tasksError) {
+      toast.error('Failed to load client tasks: ' + tasksError.message);
+      hasError = true;
+    } else {
+      setClientTasks(tasksData as ClientTask[]);
+    }
 
-      // Fetch client's tickets (created by or assigned to)
-      const { data: ticketsData, error: ticketsError } = await supabase
-        .from('tickets')
-        .select(`
+    // Fetch client's tickets (created by or assigned to)
+    const { data: ticketsData, error: ticketsError } = await supabase
+      .from('tickets')
+      .select(`
           id,
           subject,
           status,
@@ -168,20 +174,20 @@ const ClientDetailsPage: React.FC = () => {
           creator_profile:profiles!tickets_created_by_fkey(first_name, last_name),
           tasks(title)
         `)
-        .or(`created_by.eq.${id},assigned_to.eq.${id}`)
-        .order('created_at', { ascending: false });
+      .or(`created_by.eq.${id},assigned_to.eq.${id}`)
+      .order('created_at', { ascending: false });
 
-      if (ticketsError) {
-        toast.error('Failed to load client tickets: ' + ticketsError.message);
-        hasError = true;
-      } else {
-        setClientTickets(ticketsData as ClientTicket[]);
-      }
+    if (ticketsError) {
+      toast.error('Failed to load client tickets: ' + ticketsError.message);
+      hasError = true;
+    } else {
+      setClientTickets(ticketsData as ClientTicket[]);
+    }
 
-      // Fetch client's invoices
-      const { data: invoicesData, error: invoicesError } = await supabase
-        .from('invoices')
-        .select(`
+    // Fetch client's invoices
+    const { data: invoicesData, error: invoicesError } = await supabase
+      .from('invoices')
+      .select(`
           id,
           invoice_number,
           issue_date,
@@ -191,40 +197,40 @@ const ClientDetailsPage: React.FC = () => {
           created_at,
           created_by
         `)
-        .eq('client_id', id)
-        .order('created_at', { ascending: false });
+      .eq('client_id', id)
+      .order('created_at', { ascending: false });
 
-      if (invoicesError) {
-        toast.error('Failed to load client invoices: ' + invoicesError.message);
-        hasError = true;
-      } else {
-        // Fetch creator profile for each invoice separately
-        const invoicesWithCreatorDetails = await Promise.all(invoicesData.map(async (invoice: any) => {
-          let creatorProfileDetails: CreatorProfileDetails | null = null;
-          if (invoice.created_by) {
-            const { data: creatorData, error: creatorError } = await supabase
-              .from('profiles')
-              .select('first_name, last_name')
-              .eq('id', invoice.created_by)
-              .single();
-            if (creatorError) {
-              console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
-              creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
-            } else {
-              creatorProfileDetails = {
-                first_name: creatorData.first_name,
-                last_name: creatorData.last_name,
-              };
-            }
+    if (invoicesError) {
+      toast.error('Failed to load client invoices: ' + invoicesError.message);
+      hasError = true;
+    } else {
+      const invoicesWithCreatorDetails = await Promise.all(invoicesData.map(async (invoice: any) => {
+        let creatorProfileDetails: CreatorProfileDetails | null = null;
+        if (invoice.created_by) {
+          const { data: creatorData, error: creatorError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', invoice.created_by)
+            .single();
+          if (creatorError) {
+            console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
+            creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
+          } else {
+            creatorProfileDetails = {
+              first_name: creatorData.first_name,
+              last_name: creatorData.last_name,
+            };
           }
-          return { ...invoice, creator_profile_details: creatorProfileDetails };
-        }));
-        setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
-      }
+        }
+        return { ...invoice, creator_profile_details: creatorProfileDetails };
+      }));
+      setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
+    }
 
-      setLoading(false);
-    };
+    setLoading(false);
+  };
 
+  useEffect(() => {
     fetchData();
   }, [id, supabase, session]);
 
@@ -253,6 +259,13 @@ const ClientDetailsPage: React.FC = () => {
       default:
         return 'text-gray-600';
     }
+  };
+
+  const handleFormSuccess = () => {
+    setIsTaskFormOpen(false);
+    setIsTicketFormOpen(false);
+    setIsInvoiceFormOpen(false);
+    fetchData(); // Re-fetch all data to update lists
   };
 
   if (loading) {
@@ -297,7 +310,78 @@ const ClientDetailsPage: React.FC = () => {
         <h1 className="text-3xl font-bold">
           Client Details: {clientProfile.first_name} {clientProfile.last_name}
         </h1>
-        <div></div>
+        <div className="flex space-x-2">
+          <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create Task for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+              </DialogHeader>
+              <TaskForm
+                initialData={{
+                  title: `Task for ${clientProfile.first_name} ${clientProfile.last_name}`,
+                  description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
+                  status: 'pending',
+                  assigned_to: null,
+                  due_date: '',
+                }}
+                onSuccess={handleFormSuccess}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isTicketFormOpen} onOpenChange={setIsTicketFormOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Ticket
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create Ticket for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+              </DialogHeader>
+              <TicketForm
+                initialData={{
+                  subject: `Ticket for ${clientProfile.first_name} ${clientProfile.last_name}`,
+                  description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
+                  status: 'open',
+                  priority: 'medium',
+                  assigned_to: null,
+                  linked_task_id: null,
+                }}
+                onSuccess={handleFormSuccess}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isInvoiceFormOpen} onOpenChange={setIsInvoiceFormOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Invoice
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[700px]"> {/* Increased max-width for invoice form */}
+              <DialogHeader>
+                <DialogTitle>Create Invoice for {clientProfile.first_name} {clientProfile.last_name}</DialogTitle>
+              </DialogHeader>
+              <InvoiceForm
+                initialData={{
+                  invoice_number: '', // Will be generated or manually entered
+                  client_id: id,
+                  issue_date: format(new Date(), 'yyyy-MM-dd'),
+                  due_date: format(new Date(), 'yyyy-MM-dd'),
+                  status: 'draft',
+                  items: [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }],
+                }}
+                onSuccess={handleFormSuccess}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
