@@ -257,7 +257,6 @@ const POSPage: React.FC = () => {
         <LoadingSpinner size={48} />
       </div>
     );
-  );
   }
 
   return (
