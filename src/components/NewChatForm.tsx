@@ -89,35 +89,44 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
     console.log('Attempting to create chat with:', otherParticipantId);
 
     try {
-      // Check if a private chat already exists between these two users
-      // Fetch chats where both currentUserId and otherParticipantId are participants.
-      const { data: potentialPrivateChats, error: potentialPrivateChatsError } = await supabase
+      // Fetch all chats the current user is a part of
+      const { data: currentUserChatParticipants, error: currentUserChatsError } = await supabase
         .from('chat_participants')
         .select('chat_id')
-        .eq('user_id', currentUserId)
-        .in('chat_id', supabase.from('chat_participants').select('chat_id').eq('user_id', otherParticipantId));
+        .eq('user_id', currentUserId);
 
-      if (potentialPrivateChatsError) {
-        console.error('Error finding potential private chats:', potentialPrivateChatsError.message);
-        toast.error('Error finding potential private chats: ' + potentialPrivateChatsError.message);
-        return;
+      if (currentUserChatsError) {
+        throw new Error('Error fetching current user chat memberships: ' + currentUserChatsError.message);
       }
 
-      let existingPrivateChatId: string | null = null;
-      for (const chat of potentialPrivateChats) {
-        const { count: participantCount, error: countError } = await supabase
-          .from('chat_participants')
-          .select('*', { count: 'exact', head: true })
-          .eq('chat_id', chat.chat_id);
+      const currentUserChatIds = currentUserChatParticipants.map(p => p.chat_id);
 
-        if (countError) {
-          console.error('Error counting participants for chat:', chat.chat_id, countError.message);
-          continue;
+      let existingPrivateChatId: string | null = null;
+
+      if (currentUserChatIds.length > 0) {
+        // Fetch details for these chats, including participants, and filter for private chats
+        const { data: chatsDetails, error: chatsDetailsError } = await supabase
+          .from('chats')
+          .select(`
+            id,
+            type,
+            chat_participants(user_id)
+          `)
+          .in('id', currentUserChatIds)
+          .eq('type', 'private'); // Only consider private chats
+
+        if (chatsDetailsError) {
+          throw new Error('Error fetching chat details: ' + chatsDetailsError.message);
         }
 
-        if (participantCount === 2) {
-          existingPrivateChatId = chat.chat_id;
-          break;
+        // Check if any of these private chats include the other participant and have exactly two participants
+        const foundChat = chatsDetails.find(chat =>
+          chat.chat_participants.length === 2 &&
+          chat.chat_participants.some((p: { user_id: string }) => p.user_id === otherParticipantId)
+        );
+
+        if (foundChat) {
+          existingPrivateChatId = foundChat.id;
         }
       }
 
@@ -127,7 +136,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
         return;
       }
 
-      // Create new chat
+      // If no existing private chat, create a new one
       const { data: newChatData, error: chatError } = await supabase
         .from('chats')
         .insert({ type: 'private', name: null }) // Private chats don't need a name initially
