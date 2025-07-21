@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import InvoiceForm from '@/components/InvoiceForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -55,8 +53,6 @@ const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -158,17 +154,11 @@ const InvoicesPage: React.FC = () => {
   }, [supabase, searchTerm, filterStatus]);
 
   const handleNewInvoiceClick = () => {
-    setEditingInvoice(undefined);
-    setIsFormOpen(true);
+    navigate('/invoices/new');
   };
 
   const handleEditInvoiceClick = (invoice: Invoice) => {
-    setEditingInvoice({
-      ...invoice,
-      issue_date: format(new Date(invoice.issue_date), 'yyyy-MM-dd'),
-      due_date: format(new Date(invoice.due_date), 'yyyy-MM-dd'),
-    });
-    setIsFormOpen(true);
+    navigate(`/invoices/edit/${invoice.id}`);
   };
 
   const handleViewPrintable = (invoiceId: string) => {
@@ -189,11 +179,6 @@ const InvoicesPage: React.FC = () => {
       toast.success('Invoice deleted successfully!');
       fetchInvoices();
     }
-  };
-
-  const handleFormSuccess = () => {
-    setIsFormOpen(false);
-    fetchInvoices();
   };
 
   const getStatusColor = (status: string) => {
@@ -219,19 +204,9 @@ const InvoicesPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Invoices</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewInvoiceClick}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Create New Invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[700px]">
-            <DialogHeader>
-              <DialogTitle>{editingInvoice ? 'Edit Invoice' : 'Create New Invoice'}</DialogTitle>
-            </DialogHeader>
-            <InvoiceForm initialData={editingInvoice} onSuccess={handleFormSuccess} />
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleNewInvoiceClick}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Create New Invoice
+        </Button>
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">

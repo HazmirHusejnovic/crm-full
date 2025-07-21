@@ -13,9 +13,10 @@ import UserManagementPage from "./pages/UserManagement";
 import DashboardPage from "./pages/Dashboard";
 import ProfilePage from "./pages/ProfilePage";
 import InvoicesPage from "./pages/Invoices";
+import InvoiceFormPage from "./pages/InvoiceFormPage"; // Import the new page
 import ReportsPage from "./pages/Reports";
 import ClientDetailsPage from "./pages/ClientDetailsPage";
-import PrintableInvoice from "./pages/PrintableInvoice"; // Import the new PrintableInvoice page
+import PrintableInvoice from "./pages/PrintableInvoice";
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -41,9 +42,11 @@ const App = () => (
                 <Route path="/users" element={<UserManagementPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
+                <Route path="/invoices/new" element={<InvoiceFormPage />} />
+                <Route path="/invoices/edit/:id" element={<InvoiceFormPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/clients/:id" element={<ClientDetailsPage />} />
-                <Route path="/invoices/print/:id" element={<PrintableInvoice />} /> {/* New Printable Invoice route */}
+                <Route path="/invoices/print/:id" element={<PrintableInvoice />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
