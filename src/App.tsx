@@ -10,9 +10,10 @@ import TasksPage from "./pages/Tasks";
 import TicketsPage from "./pages/Tickets";
 import ServicesPage from "./pages/Services";
 import UserManagementPage from "./pages/UserManagement";
-import DashboardPage from "./pages/Dashboard"; // Import the new Dashboard page
+import DashboardPage from "./pages/Dashboard";
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
+import MainLayout from "./components/MainLayout"; // Import the new MainLayout
 
 const queryClient = new QueryClient();
 
@@ -26,12 +27,14 @@ const App = () => (
           <SessionContextProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/" element={<Index />} /> {/* Index is now the navigation hub */}
-              <Route path="/dashboard" element={<DashboardPage />} /> {/* New Dashboard route */}
-              <Route path="/tasks" element={<TasksPage />} />
-              <Route path="/tickets" element={<TicketsPage />} />
-              <Route path="/services" element={<ServicesPage />} />
-              <Route path="/users" element={<UserManagementPage />} />
+              <Route element={<MainLayout />}> {/* Wrap authenticated routes with MainLayout */}
+                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/services" element={<ServicesPage />} />
+                <Route path="/users" element={<UserManagementPage />} />
+              </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
