@@ -3,50 +3,50 @@ import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input'; // Import Input for search
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ProfileForm from '@/components/ProfileForm';
-import UserCreateForm from '@/components/UserCreateForm'; // Import the new UserCreateForm
+import UserCreateForm from '@/components/UserCreateForm';
 import { toast } from 'sonner';
-import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react'; // Import Trash2 icon
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { useNavigate } from 'react-router-dom';
 
 interface Profile {
   id: string;
   first_name: string | null;
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
-  email: string; // Assuming email can be fetched or joined from auth.users
+  email: string;
 }
 
 const UserManagementPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // Renamed for clarity
-  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false); // New state for create form
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
-  const [filterRole, setFilterRole] = useState<string>('all'); // New state for role filter
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState<string>('all');
 
   const fetchProfiles = async () => {
     setLoading(true);
-    // Fetch profiles and join with auth.users to get email
     let query = supabase
       .from('profiles')
       .select(`
         id,
         first_name,
         last_name,
-        role,
-        users(email)
+        role
       `);
 
     if (searchTerm) {
-      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,users.email.ilike.%${searchTerm}%`);
+      // For search, we'll need to fetch emails first or search only on name fields
+      // For now, search only on first_name and last_name for simplicity
+      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
     }
 
     if (filterRole !== 'all') {
@@ -57,16 +57,27 @@ const UserManagementPage: React.FC = () => {
 
     if (error) {
       toast.error('Failed to load profiles: ' + error.message);
-    } else {
-      const formattedProfiles: Profile[] = data.map((p: any) => ({
-        id: p.id,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        role: p.role,
-        email: p.users?.email || 'N/A',
-      }));
-      setProfiles(formattedProfiles);
+      setLoading(false);
+      return;
     }
+
+    // Fetch emails separately for each profile
+    const profilesWithEmails = await Promise.all(data.map(async (profile: any) => {
+      const { data: userData, error: userError } = await supabase
+        .from('profiles') // Querying profiles again to get the joined auth.users email
+        .select('users(email)')
+        .eq('id', profile.id)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching email for profile:', profile.id, userError.message);
+        return { ...profile, email: 'Error fetching email' };
+      } else {
+        return { ...profile, email: userData?.users?.email || 'N/A' };
+      }
+    }));
+
+    setProfiles(profilesWithEmails as Profile[]);
     setLoading(false);
   };
 
@@ -85,9 +96,9 @@ const UserManagementPage: React.FC = () => {
         }
       };
       fetchUserRole();
-      fetchProfiles(); // Initial fetch
+      fetchProfiles();
     }
-  }, [supabase, session, searchTerm, filterRole]); // Re-fetch when search term or filter role changes
+  }, [supabase, session, searchTerm, filterRole]);
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
@@ -125,7 +136,7 @@ const UserManagementPage: React.FC = () => {
       }
 
       toast.success('User deleted successfully!');
-      fetchProfiles(); // Refresh the list
+      fetchProfiles();
     } catch (error: any) {
       toast.error('Error deleting user: ' + error.message);
     }
