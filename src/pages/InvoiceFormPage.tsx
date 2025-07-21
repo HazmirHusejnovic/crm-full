@@ -7,7 +7,7 @@ import InvoiceForm from '@/components/InvoiceForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import MainLayout from '@/components/MainLayout';
+// Removed MainLayout import as it's already provided by the router
 
 // Define the Invoice type based on what InvoiceForm expects as initialData
 interface InvoiceFormData {
@@ -103,46 +103,40 @@ const InvoiceFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <LoadingSpinner size={48} />
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <p className="text-red-500">{error}</p>
-          <Button onClick={() => navigate('/invoices')} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Invoices
-          </Button>
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-red-500">{error}</p>
+        <Button onClick={() => navigate('/invoices')} className="mt-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Invoices
+        </Button>
+      </div>
     );
   }
 
   return (
-    <MainLayout>
-      <div className="container mx-auto p-4">
-        <div className="flex items-center mb-6">
-          <Button variant="outline" onClick={() => navigate('/invoices')} className="mr-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Invoices
-          </Button>
-          <h1 className="text-3xl font-bold">{id ? 'Edit Invoice' : 'Create New Invoice'}</h1>
-        </div>
-        <Card className="max-w-3xl mx-auto">
-          <CardHeader>
-            <CardTitle>{id ? 'Edit Invoice Details' : 'Enter New Invoice Details'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <InvoiceForm initialData={initialData} onSuccess={handleSuccess} />
-          </CardContent>
-        </Card>
+    <div className="container mx-auto p-4">
+      <div className="flex items-center mb-6">
+        <Button variant="outline" onClick={() => navigate('/invoices')} className="mr-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Invoices
+        </Button>
+        <h1 className="text-3xl font-bold">{id ? 'Edit Invoice' : 'Create New Invoice'}</h1>
       </div>
-    </MainLayout>
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>{id ? 'Edit Invoice Details' : 'Enter New Invoice Details'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <InvoiceForm initialData={initialData} onSuccess={handleSuccess} />
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
