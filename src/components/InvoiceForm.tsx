@@ -22,7 +22,7 @@ import {
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { PlusCircle } from 'lucide-react';
-import InvoiceItemForm, { InvoiceItemFormValues } from './InvoiceItemForm';
+import InvoiceItemForm, { InvoiceItemFormValues, invoiceItemFormSchema } from './InvoiceItemForm'; // Import invoiceItemFormSchema
 import { format } from 'date-fns';
 
 const invoiceFormSchema = z.object({
@@ -31,7 +31,7 @@ const invoiceFormSchema = z.object({
   issue_date: z.string().min(1, { message: 'Issue date is required.' }),
   due_date: z.string().min(1, { message: 'Due date is required.' }),
   status: z.enum(['draft', 'sent', 'paid', 'overdue', 'cancelled']),
-  items: z.array(InvoiceItemFormValues).min(1, { message: 'At least one invoice item is required.' }),
+  items: z.array(invoiceItemFormSchema).min(1, { message: 'At least one invoice item is required.' }), // Use the schema here
 });
 
 type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
@@ -248,7 +248,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
                   <Input type="date" {...field} />
                 </FormControl>
                 <FormMessage />
-              </FormItem>
+            </FormItem>
             )}
           />
         </div>

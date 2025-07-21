@@ -24,7 +24,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 
-const invoiceItemFormSchema = z.object({
+export const invoiceItemFormSchema = z.object({
   service_id: z.string().uuid().nullable().optional(),
   description: z.string().min(1, { message: 'Description is required.' }),
   quantity: z.preprocess(
