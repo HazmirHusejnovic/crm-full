@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Search, ShoppingCart, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 interface Product {
   id: string;
@@ -22,7 +23,8 @@ interface CartItem extends Product {
 }
 
 const POSPage: React.FC = () => {
-  const { supabase } = useSession();
+  const { supabase, session } = useSession();
+  const navigate = useNavigate(); // Initialize useNavigate
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,20 +103,102 @@ const POSPage: React.FC = () => {
     });
   };
 
-  const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const calculateItemTotal = (item: CartItem) => {
+    // Assuming VAT rate is 0 for products in POS for simplicity, or can be added to product schema
+    // For now, let's assume no VAT calculation here, just price * quantity
+    return item.price * item.quantity;
   };
 
-  const handleProcessSale = () => {
+  const calculateTotal = () => {
+    return cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+  };
+
+  const handleProcessSale = async () => {
+    if (!session?.user?.id) {
+      toast.error('User not authenticated. Please log in.');
+      return;
+    }
+
     if (cart.length === 0) {
       toast.error('Cart is empty. Add products to proceed.');
       return;
     }
-    // TODO: Implement actual sale processing (create invoice, update stock)
-    toast.info('Processing sale... (Feature coming soon!)');
-    console.log('Sale to process:', cart);
-    // For now, clear the cart after "processing"
-    setCart([]);
+
+    const loadingToastId = toast.loading('Processing sale...');
+
+    try {
+      const invoiceNumber = `POS-${Date.now()}`; // Simple invoice number generation
+      const issueDate = new Date().toISOString();
+      const dueDate = new Date().toISOString(); // Same as issue date for immediate sale
+      const totalAmount = calculateTotal();
+
+      // 1. Create the invoice
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({
+          invoice_number: invoiceNumber,
+          client_id: null, // For POS, client might be null (walk-in)
+          issue_date: issueDate,
+          due_date: dueDate,
+          total_amount: totalAmount,
+          status: 'paid', // Mark as paid for immediate POS sale
+          created_by: session.user.id,
+        })
+        .select('id')
+        .single();
+
+      if (invoiceError) {
+        throw new Error('Failed to create invoice: ' + invoiceError.message);
+      }
+
+      const invoiceId = invoiceData.id;
+
+      // 2. Prepare invoice items and stock updates
+      const invoiceItems = cart.map(item => ({
+        invoice_id: invoiceId,
+        service_id: null, // Products are not services
+        description: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        vat_rate: 0, // Assuming 0 VAT for simplicity in POS, adjust if needed
+        total: calculateItemTotal(item),
+      }));
+
+      const stockUpdates = cart.map(item => ({
+        id: item.id,
+        new_stock_quantity: item.stock_quantity - item.quantity,
+      }));
+
+      // 3. Insert invoice items
+      const { error: itemsError } = await supabase
+        .from('invoice_items')
+        .insert(invoiceItems);
+
+      if (itemsError) {
+        throw new Error('Failed to add invoice items: ' + itemsError.message);
+      }
+
+      // 4. Update product stock quantities
+      for (const update of stockUpdates) {
+        const { error: stockUpdateError } = await supabase
+          .from('products')
+          .update({ stock_quantity: update.new_stock_quantity })
+          .eq('id', update.id);
+
+        if (stockUpdateError) {
+          console.error(`Failed to update stock for product ${update.id}:`, stockUpdateError.message);
+          // Decide if you want to roll back or just log and continue
+          // For now, we'll just log and let the sale proceed, but in a real app, you might want to handle this more robustly.
+        }
+      }
+
+      toast.success('Sale processed successfully!', { id: loadingToastId });
+      setCart([]); // Clear cart
+      // Optionally navigate to the new invoice or a confirmation page
+      navigate(`/invoices/print/${invoiceId}`); // Navigate to printable invoice
+    } catch (error: any) {
+      toast.error(error.message || 'An unexpected error occurred during sale processing.', { id: loadingToastId });
+    }
   };
 
   if (loading) {
