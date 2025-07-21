@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -26,6 +26,7 @@ const profileFormSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
   role: z.enum(['client', 'worker', 'administrator']),
+  default_currency_id: z.string().uuid().nullable().optional(), // New field
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -35,8 +36,16 @@ interface ProfileFormProps {
   onSuccess?: () => void;
 }
 
+interface Currency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+}
+
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => {
   const { supabase, session } = useSession();
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -44,8 +53,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
       first_name: initialData.first_name || '',
       last_name: initialData.last_name || '',
       role: initialData.role,
+      default_currency_id: initialData.default_currency_id || null, // Initialize new field
     },
   });
+
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      const { data, error } = await supabase
+        .from('currencies')
+        .select('id, code, name, symbol')
+        .order('code', { ascending: true });
+
+      if (error) {
+        toast.error('Failed to load currencies: ' + error.message);
+      } else {
+        setCurrencies(data);
+      }
+    };
+    fetchCurrencies();
+  }, [supabase]);
 
   const onSubmit = async (values: ProfileFormValues) => {
     if (!session?.user?.id) {
@@ -55,7 +81,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
 
     const { error } = await supabase
       .from('profiles')
-      .update(values)
+      .update({
+        first_name: values.first_name,
+        last_name: values.last_name,
+        role: values.role,
+        default_currency_id: values.default_currency_id === 'null-value' ? null : values.default_currency_id, // Handle null-value
+      })
       .eq('id', initialData.id);
 
     if (error) {
@@ -117,6 +148,31 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="worker">Worker</SelectItem>
                   <SelectItem value="administrator">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="default_currency_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Default Currency</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || 'null-value'}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select default currency" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="null-value">No Specific Currency</SelectItem>
+                  {currencies.map((currency) => (
+                    <SelectItem key={currency.id} value={currency.id}>
+                      {currency.name} ({currency.code})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />

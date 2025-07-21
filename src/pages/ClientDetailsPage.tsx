@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { format } from 'date-fns';
-import { ArrowLeft, ListTodo, Ticket, ReceiptText, Mail, PlusCircle } from 'lucide-react';
+import { ArrowLeft, ListTodo, Ticket, ReceiptText, Mail, PlusCircle, DollarSign } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
@@ -18,6 +18,8 @@ interface ClientProfile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
+  default_currency_id: string | null; // Add new field
+  default_currency: { code: string; symbol: string } | null; // For displaying currency details
 }
 
 interface ClientTask {
@@ -73,10 +75,6 @@ const ClientDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
-  const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
-  const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
-  const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
-
   const fetchData = async () => {
     if (!session?.user?.id || !id) {
       setLoading(false);
@@ -113,8 +111,10 @@ const ClientDetailsPage: React.FC = () => {
           first_name,
           last_name,
           role,
-          email
-        `) // Select email directly
+          email,
+          default_currency_id,
+          currencies(code, symbol)
+        `) // Select email and default_currency_id directly, and join currencies
       .eq('id', id)
       .single();
 
@@ -127,7 +127,9 @@ const ClientDetailsPage: React.FC = () => {
         first_name: profileData.first_name,
         last_name: profileData.last_name,
         role: profileData.role,
-        email: profileData.email || 'N/A', // Access email directly
+        email: profileData.email || 'N/A',
+        default_currency_id: profileData.default_currency_id,
+        default_currency: profileData.currencies,
       });
     }
 
@@ -391,6 +393,11 @@ const ClientDetailsPage: React.FC = () => {
               <Mail className="h-4 w-4 mr-2" /> {clientProfile.email}
             </p>
             <p className="text-sm text-muted-foreground">Role: <span className="capitalize">{clientProfile.role}</span></p>
+            {clientProfile.default_currency && (
+              <p className="text-sm text-muted-foreground flex items-center">
+                <DollarSign className="h-4 w-4 mr-2" /> Default Currency: {clientProfile.default_currency.name} ({clientProfile.default_currency.symbol})
+              </p>
+            )}
           </CardContent>
         </Card>
 

@@ -18,6 +18,7 @@ interface Profile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
+  default_currency_id: string | null; // Add new field
 }
 
 const UserManagementPage: React.FC = () => {
@@ -41,8 +42,9 @@ const UserManagementPage: React.FC = () => {
         first_name,
         last_name,
         role,
-        email
-      `); // Select email directly
+        email,
+        default_currency_id
+      `); // Select email and default_currency_id directly
 
     if (searchTerm) {
       query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
@@ -75,6 +77,7 @@ const UserManagementPage: React.FC = () => {
           .single();
         if (error) {
           console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
         } else {
           setCurrentUserRole(data.role);
         }
