@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
 import { Edit, Search } from 'lucide-react'; // Import Search icon
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 
 interface Profile {
   id: string;
@@ -95,7 +96,11 @@ const UserManagementPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading users...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   if (currentUserRole !== 'administrator') {

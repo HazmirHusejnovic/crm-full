@@ -3,6 +3,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 
 interface Profile {
   id: string;
@@ -87,7 +88,11 @@ const ProfilePage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading profile...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   if (!profile) {

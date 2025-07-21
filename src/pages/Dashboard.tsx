@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
 import TaskStatusChart from '@/components/TaskStatusChart';
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 
 interface DashboardStats {
   openTasks: number;
@@ -115,7 +116,11 @@ const DashboardPage: React.FC = () => {
   }, [supabase, session]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading dashboard...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   return (

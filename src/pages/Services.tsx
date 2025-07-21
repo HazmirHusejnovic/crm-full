@@ -11,6 +11,7 @@ import ServiceForm from '@/components/ServiceForm';
 import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
 import { format } from 'date-fns';
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 
 interface ServiceCategory {
   id: string;
@@ -165,7 +166,11 @@ const ServicesPage: React.FC = () => {
   };
 
   if (loadingCategories || loadingServices) {
-    return <div className="flex items-center justify-center min-h-screen">Loading services data...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   return (

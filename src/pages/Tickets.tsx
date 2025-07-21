@@ -9,6 +9,7 @@ import TicketForm from '@/components/TicketForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 
 interface Ticket {
   id: string;
@@ -107,7 +108,11 @@ const TicketsPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading tickets...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   return (
