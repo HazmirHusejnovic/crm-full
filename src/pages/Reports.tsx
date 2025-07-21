@@ -39,6 +39,7 @@ const ReportsPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   useEffect(() => {
@@ -86,9 +87,8 @@ const ReportsPage: React.FC = () => {
         return;
       }
 
-      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-      if (!checkViewModule('reports')) {
+      // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+      if (!canViewModule('reports')) { // Koristimo canViewModule direktno
         setLoading(false);
         return; // Exit if not authorized
       }
@@ -196,7 +196,7 @@ const ReportsPage: React.FC = () => {
     };
 
     fetchReportData();
-  }, [supabase, session]); // Dependencies are just supabase and session.
+  }, [supabase, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   if (loading) {
     return (

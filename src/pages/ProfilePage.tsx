@@ -26,6 +26,7 @@ const ProfilePage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   useEffect(() => {
@@ -73,9 +74,8 @@ const ProfilePage: React.FC = () => {
         return;
       }
 
-      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-      if (!checkViewModule('profile')) {
+      // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+      if (!canViewModule('profile')) { // Koristimo canViewModule direktno
         setLoading(false);
         return;
       }
@@ -109,7 +109,7 @@ const ProfilePage: React.FC = () => {
     };
 
     fetchProfileData();
-  }, [supabase, session]); // Dependencies are just supabase and session.
+  }, [supabase, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleFormSuccess = () => {
     // Re-fetch profile to show updated data

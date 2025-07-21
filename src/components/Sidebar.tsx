@@ -78,6 +78,9 @@ const Sidebar: React.FC = () => {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
+  const { canViewModule } = usePermissions(appSettings, userRole as 'client' | 'worker' | 'administrator');
+
   useEffect(() => {
     const fetchSettingsAndRole = async () => {
       setLoadingSettings(true);
@@ -126,9 +129,6 @@ const Sidebar: React.FC = () => {
       toast.success('Logged out successfully!');
     }
   };
-
-  // Use the new usePermissions hook
-  const { canViewModule } = usePermissions(appSettings, userRole as 'client' | 'worker' | 'administrator');
 
   if (loadingSettings) {
     return (

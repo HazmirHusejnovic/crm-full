@@ -75,6 +75,7 @@ const POSPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   useEffect(() => {
@@ -126,9 +127,8 @@ const POSPage: React.FC = () => {
         return;
       }
 
-      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-      if (!checkViewModule('pos')) {
+      // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+      if (!canViewModule('pos')) { // Koristimo canViewModule direktno
         setLoading(false);
         return; // Exit if not authorized
       }
@@ -203,7 +203,7 @@ const POSPage: React.FC = () => {
     };
 
     fetchAllData();
-  }, [supabase, searchTerm, selectedCurrencyId, session]); // Dependencies are just supabase, searchTerm, selectedCurrencyId, and session.
+  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -487,7 +487,6 @@ const POSPage: React.FC = () => {
                   <SelectValue placeholder="Walk-in Customer" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="null-value">Walk-in Customer</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.first_name} {client.last_name} ({client.email})

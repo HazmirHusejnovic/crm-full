@@ -86,6 +86,7 @@ const ClientDetailsPage: React.FC = () => {
   const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchData = async () => {
@@ -133,9 +134,8 @@ const ClientDetailsPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('users')) { // Assuming client details page is part of user management module
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('users')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -269,7 +269,7 @@ const ClientDetailsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id, supabase, session]); // Dependencies are just id, supabase, and session.
+  }, [id, supabase, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const getStatusColor = (status: string) => {
     switch (status) {

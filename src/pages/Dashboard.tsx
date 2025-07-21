@@ -31,6 +31,9 @@ const DashboardPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   useEffect(() => {
     const fetchPageData = async () => {
       setLoading(true); // Start loading for the entire page
@@ -71,23 +74,19 @@ const DashboardPage: React.FC = () => {
         setAppSettings(settingsData as AppSettings);
       }
 
-      // If we failed to get role or settings, we can't check permissions reliably.
-      // In a real app, you might want a more robust error page or retry mechanism.
-      // For now, if permissions cannot be determined, assume no access.
+      // Ako nismo uspjeli dobiti ulogu ili postavke, ne možemo pouzdano provjeriti dozvole.
+      // U stvarnoj aplikaciji, možda biste željeli robusniju stranicu greške ili mehanizam ponovnog pokušaja.
+      // Za sada, ako se dozvole ne mogu utvrditi, pretpostavite da nema pristupa.
+      // Ovdje nećemo provjeravati canViewModule, jer se to radi izvan useEffect-a.
       if (!role || !settings) {
         setLoading(false);
         return;
       }
 
-      // 3. Check permissions using the fetched role and settings
-      const { canViewModule: checkViewModule } = usePermissions(settings, role as 'client' | 'worker' | 'administrator');
+      // Sada kada su role i settings dostupni, canViewModule će biti ažuriran.
+      // Možemo ga koristiti za uvjetno dohvaćanje podataka ako je potrebno,
+      // ali glavna provjera pristupa stranici se radi u render funkciji.
 
-      if (!checkViewModule('dashboard')) {
-        setLoading(false);
-        return; // Not authorized to view this module
-      }
-
-      // 4. Fetch dashboard specific data
       let hasDataFetchError = false;
 
       // Fetch open tasks count
@@ -165,10 +164,6 @@ const DashboardPage: React.FC = () => {
     fetchPageData();
   }, [supabase, session]); // Only depend on supabase and session. All other data is fetched internally.
 
-  // The usePermissions hook is called here, outside the useEffect,
-  // so it reacts to changes in appSettings and currentUserRole state.
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -177,8 +172,8 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  // This check now relies on the state variables `appSettings` and `currentUserRole`
-  // which are set by the `useEffect` above. If `loading` is false, these should be populated.
+  // Ova provjera sada ovisi o state varijablama `appSettings` i `currentUserRole`
+  // koje su postavljene u `useEffect` iznad. Ako je `loading` false, ove bi trebale biti popunjene.
   if (!canViewModule('dashboard')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">

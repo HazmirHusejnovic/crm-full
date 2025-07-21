@@ -51,6 +51,7 @@ const ServicesPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchAllData = async () => {
@@ -97,9 +98,8 @@ const ServicesPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('services')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('services')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -151,7 +151,7 @@ const ServicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, session]); // Dependencies are just supabase, searchTerm, filterCategoryId, and session.
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);

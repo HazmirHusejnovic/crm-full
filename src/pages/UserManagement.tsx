@@ -39,6 +39,7 @@ const UserManagementPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchProfiles = async () => {
@@ -85,9 +86,8 @@ const UserManagementPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('users')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('users')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -125,7 +125,7 @@ const UserManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchProfiles();
-  }, [supabase, session, searchTerm, filterRole]); // Dependencies are just supabase, session, searchTerm, and filterRole.
+  }, [supabase, session, searchTerm, filterRole, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);

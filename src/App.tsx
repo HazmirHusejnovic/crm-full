@@ -56,6 +56,9 @@ const AppRoutes = () => {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
+  const { canViewModule } = usePermissions(appSettings, currentUserRole);
+
   useEffect(() => {
     const fetchSettingsAndRole = async () => {
       setLoadingSettings(true);
@@ -92,9 +95,6 @@ const AppRoutes = () => {
 
     fetchSettingsAndRole();
   }, [session, supabase]);
-
-  // Use the new usePermissions hook
-  const { canViewModule } = usePermissions(appSettings, currentUserRole);
 
   if (loadingSettings) {
     return (

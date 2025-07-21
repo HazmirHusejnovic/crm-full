@@ -41,6 +41,7 @@ const ChatPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchConversations = async () => {
@@ -87,9 +88,8 @@ const ChatPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('chat')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('chat')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -187,7 +187,7 @@ const ChatPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, session, selectedChatId]); // Dependencies are just supabase, session, and selectedChatId.
+  }, [supabase, session, selectedChatId, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);

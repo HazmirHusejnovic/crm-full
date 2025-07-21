@@ -42,6 +42,7 @@ const TicketsPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchTickets = async () => {
@@ -88,9 +89,8 @@ const TicketsPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('tickets')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('tickets')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -132,7 +132,7 @@ const TicketsPage: React.FC = () => {
 
   useEffect(() => {
     fetchTickets();
-  }, [supabase, searchTerm, filterStatus, session]); // Dependencies are just supabase, searchTerm, filterStatus, and session.
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);

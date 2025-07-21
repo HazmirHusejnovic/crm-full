@@ -40,10 +40,11 @@ const TasksPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchTasks = async () => {
-    setLoading(true); // Start loading for the entire page
+    setLoading(true);
     let currentRole: string | null = null;
     let currentSettings: AppSettings | null = null;
 
@@ -86,9 +87,10 @@ const TasksPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('tasks')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    // i ažurira se kada se `appSettings` ili `currentUserRole` promijene.
+    // Ovdje samo koristimo njegovu trenutnu vrijednost.
+    if (!canViewModule('tasks')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -128,7 +130,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus, session]); // Dependencies are just supabase, searchTerm, filterStatus, and session.
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);

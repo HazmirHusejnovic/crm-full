@@ -44,6 +44,7 @@ const SettingsPage: React.FC = () => {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchAppSettingsAndRole = async () => {

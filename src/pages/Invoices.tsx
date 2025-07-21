@@ -72,6 +72,7 @@ const InvoicesPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchInvoices = async () => {
@@ -118,9 +119,8 @@ const InvoicesPage: React.FC = () => {
       return;
     }
 
-    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
-
-    if (!checkViewModule('invoices')) {
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('invoices')) { // Koristimo canViewModule direktno
       setLoading(false);
       return;
     }
@@ -220,7 +220,7 @@ const InvoicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, [supabase, searchTerm, filterStatus, session]); // Dependencies are just supabase, searchTerm, filterStatus, and session.
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
 
   const handleNewInvoiceClick = () => {
     navigate('/invoices/new');
