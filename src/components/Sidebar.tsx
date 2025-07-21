@@ -16,7 +16,8 @@ import {
   User,
   ReceiptText,
   BarChart3,
-  Settings, // Import Settings icon
+  Settings,
+  Package, // Import Package icon for Products
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -109,6 +110,12 @@ const Sidebar: React.FC = () => {
               icon={Briefcase}
               label="Services"
               isActive={location.pathname === '/services'}
+            />
+            <NavLink
+              to="/products"
+              icon={Package} // Using Package icon for Products
+              label="Products"
+              isActive={location.pathname === '/products'}
             />
             <NavLink
               to="/invoices"

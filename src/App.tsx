@@ -17,7 +17,8 @@ import InvoiceFormPage from "./pages/InvoiceFormPage";
 import ReportsPage from "./pages/Reports";
 import ClientDetailsPage from "./pages/ClientDetailsPage";
 import PrintableInvoice from "./pages/PrintableInvoice";
-import SettingsPage from "./pages/SettingsPage"; // Import the new SettingsPage
+import SettingsPage from "./pages/SettingsPage";
+import ProductsPage from "./pages/ProductsPage"; // Import the new ProductsPage
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/services" element={<ServicesPage />} />
+                <Route path="/products" element={<ProductsPage />} /> {/* New route for Products */}
                 <Route path="/users" element={<UserManagementPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
@@ -48,7 +50,7 @@ const App = () => (
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/clients/:id" element={<ClientDetailsPage />} />
                 <Route path="/invoices/print/:id" element={<PrintableInvoice />} />
-                <Route path="/settings" element={<SettingsPage />} /> {/* New route for Settings */}
+                <Route path="/settings" element={<SettingsPage />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
