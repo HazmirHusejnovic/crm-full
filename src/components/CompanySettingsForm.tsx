@@ -50,18 +50,8 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
     },
   });
 
-  // Update form defaults when initialData changes
-  useEffect(() => {
-    form.reset({
-      company_name: initialData?.company_name || '',
-      company_address: initialData?.company_address || '',
-      company_email: initialData?.company_email || '',
-      company_phone: initialData?.company_phone || '',
-      company_logo_url: initialData?.company_logo_url || '',
-      bank_account_details: initialData?.bank_account_details || '',
-    });
-  }, [initialData, form]);
-
+  // Removed the problematic useEffect that caused re-renders.
+  // The defaultValues in useForm are sufficient for initial load and updates.
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
