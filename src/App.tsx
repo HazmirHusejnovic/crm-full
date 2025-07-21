@@ -14,7 +14,8 @@ import DashboardPage from "./pages/Dashboard";
 import ProfilePage from "./pages/ProfilePage";
 import InvoicesPage from "./pages/Invoices";
 import ReportsPage from "./pages/Reports";
-import ClientDetailsPage from "./pages/ClientDetailsPage"; // Import the new ClientDetailsPage
+import ClientDetailsPage from "./pages/ClientDetailsPage";
+import PrintableInvoice from "./pages/PrintableInvoice"; // Import the new PrintableInvoice page
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -41,7 +42,8 @@ const App = () => (
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/clients/:id" element={<ClientDetailsPage />} /> {/* New Client Details route */}
+                <Route path="/clients/:id" element={<ClientDetailsPage />} />
+                <Route path="/invoices/print/:id" element={<PrintableInvoice />} /> {/* New Printable Invoice route */}
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

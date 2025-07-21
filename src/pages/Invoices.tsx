@@ -9,7 +9,8 @@ import InvoiceForm from '@/components/InvoiceForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2, Search, DollarSign } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer } from 'lucide-react'; // Import Printer icon
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 interface InvoiceItem {
   id: string;
@@ -39,6 +40,7 @@ interface Invoice {
 
 const InvoicesPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const navigate = useNavigate(); // Initialize useNavigate
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -108,6 +110,10 @@ const InvoicesPage: React.FC = () => {
       due_date: format(new Date(invoice.due_date), 'yyyy-MM-dd'),
     });
     setIsFormOpen(true);
+  };
+
+  const handleViewPrintable = (invoiceId: string) => {
+    navigate(`/invoices/print/${invoiceId}`);
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
@@ -204,6 +210,9 @@ const InvoicesPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {invoice.invoice_number}
                   <div className="flex space-x-2">
+                    <Button variant="ghost" size="icon" onClick={() => handleViewPrintable(invoice.id)}>
+                      <Printer className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleEditInvoiceClick(invoice)}>
                       <Edit className="h-4 w-4" />
                     </Button>
