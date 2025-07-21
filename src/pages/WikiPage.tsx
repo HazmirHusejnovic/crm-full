@@ -32,9 +32,11 @@ interface WikiArticle {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
-  wiki_categories: { name: string } | null;
-  creator_profile: { first_name: string | null; last_name: string | null } | null;
-  updater_profile: { first_name: string | null; last_name: string | null } | null;
+  category_name: string | null; // From view
+  creator_first_name: string | null; // From view
+  creator_last_name: string | null; // From view
+  updater_first_name: string | null; // From view
+  updater_last_name: string | null; // From view
 }
 
 interface WikiArticleVersion {
@@ -84,7 +86,7 @@ const WikiPage: React.FC = () => {
   const fetchArticles = async () => {
     setLoadingArticles(true);
     let query = supabase
-      .from('wiki_articles')
+      .from('wiki_articles_with_details') // Use the new view
       .select(`
         id,
         title,
@@ -95,9 +97,11 @@ const WikiPage: React.FC = () => {
         updated_by,
         created_at,
         updated_at,
-        wiki_categories(name),
-        creator_profile:profiles!wiki_articles_created_by_fkey(first_name, last_name),
-        updater_profile:profiles!wiki_articles_updated_by_fkey(first_name, last_name)
+        category_name,
+        creator_first_name,
+        creator_last_name,
+        updater_first_name,
+        updater_last_name
       `);
 
     if (searchTerm) {
@@ -346,9 +350,9 @@ const WikiPage: React.FC = () => {
                   </CardHeader>
                   <CardContent className="flex-grow">
                     <div className="text-xs text-gray-500 dark:text-gray-300">
-                      <p>Category: <span className="font-medium">{article.wiki_categories?.name || 'N/A'}</span></p>
+                      <p>Category: <span className="font-medium">{article.category_name || 'N/A'}</span></p>
                       <p>Visibility: <span className="font-medium capitalize">{article.visibility}</span></p>
-                      <p>Created By: <span className="font-medium">{article.creator_profile?.first_name} {article.creator_profile?.last_name}</span></p>
+                      <p>Created By: <span className="font-medium">{article.creator_first_name} {article.creator_last_name}</span></p>
                       <p>Last Updated: <span className="font-medium">{format(new Date(article.updated_at), 'PPP p')}</span></p>
                       {canManageWiki && (
                         <Button variant="link" size="sm" className="p-0 h-auto mt-2" onClick={() => handleViewVersionHistory(article)}>
@@ -376,10 +380,10 @@ const WikiPage: React.FC = () => {
                 )}
               </div>
               <div className="text-sm text-muted-foreground mt-4 border-t pt-4">
-                <p>Category: <span className="font-medium">{viewingArticle?.wiki_categories?.name || 'N/A'}</span></p>
+                <p>Category: <span className="font-medium">{viewingArticle?.category_name || 'N/A'}</span></p>
                 <p>Visibility: <span className="font-medium capitalize">{viewingArticle?.visibility}</span></p>
-                <p>Created By: <span className="font-medium">{viewingArticle?.creator_profile?.first_name} {viewingArticle?.creator_profile?.last_name}</span></p>
-                <p>Last Updated: <span className="font-medium">{viewingArticle?.updater_profile?.first_name} {viewingArticle?.updater_profile?.last_name} on {viewingArticle?.updated_at ? format(new Date(viewingArticle.updated_at), 'PPP p') : 'N/A'}</span></p>
+                <p>Created By: <span className="font-medium">{viewingArticle?.creator_first_name} {viewingArticle?.creator_last_name}</span></p>
+                <p>Last Updated: <span className="font-medium">{viewingArticle?.updater_first_name} {viewingArticle?.updater_last_name} on {viewingArticle?.updated_at ? format(new Date(viewingArticle.updated_at), 'PPP p') : 'N/A'}</span></p>
               </div>
             </DialogContent>
           </Dialog>
