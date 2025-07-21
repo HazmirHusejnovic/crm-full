@@ -15,7 +15,8 @@ import {
   LogOut,
   User,
   ReceiptText,
-  BarChart3, // Import BarChart3 icon for reports
+  BarChart3,
+  Settings, // Import Settings icon
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -139,6 +140,12 @@ const Sidebar: React.FC = () => {
               icon={User}
               label="My Profile"
               isActive={location.pathname === '/profile'}
+            />
+            <NavLink
+              to="/settings"
+              icon={Settings}
+              label="Settings"
+              isActive={location.pathname === '/settings'}
             />
           </div>
         </div>
