@@ -166,7 +166,14 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
             <FormItem>
               <FormLabel>Quantity</FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" placeholder="1.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="1.00"
+                  {...field}
+                  value={field.value?.toString() || ''} // Ensure value is string
+                  onChange={e => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -179,7 +186,14 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
             <FormItem>
               <FormLabel>Unit Price</FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...field}
+                  value={field.value?.toString() || ''} // Ensure value is string
+                  onChange={e => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -192,7 +206,14 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, item, onUpdate
             <FormItem>
               <FormLabel>VAT Rate</FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...field}
+                  value={field.value?.toString() || ''} // Ensure value is string
+                  onChange={e => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
