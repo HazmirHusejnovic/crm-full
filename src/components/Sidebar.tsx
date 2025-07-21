@@ -13,6 +13,7 @@ import {
   Briefcase,
   Users,
   LogOut,
+  User, // Import User icon for profile
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -114,6 +115,17 @@ const Sidebar: React.FC = () => {
                 isActive={location.pathname === '/users'}
               />
             )}
+          </div>
+        </div>
+        <div className="px-3 py-2 mt-4">
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Account</h2>
+          <div className="space-y-1">
+            <NavLink
+              to="/profile"
+              icon={User}
+              label="My Profile"
+              isActive={location.pathname === '/profile'}
+            />
           </div>
         </div>
       </ScrollArea>

@@ -11,9 +11,10 @@ import TicketsPage from "./pages/Tickets";
 import ServicesPage from "./pages/Services";
 import UserManagementPage from "./pages/UserManagement";
 import DashboardPage from "./pages/Dashboard";
+import ProfilePage from "./pages/ProfilePage"; // Import the new Profile page
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
-import MainLayout from "./components/MainLayout"; // Import the new MainLayout
+import MainLayout from "./components/MainLayout";
 
 const queryClient = new QueryClient();
 
@@ -27,13 +28,14 @@ const App = () => (
           <SessionContextProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route element={<MainLayout />}> {/* Wrap authenticated routes with MainLayout */}
+              <Route element={<MainLayout />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/users" element={<UserManagementPage />} />
+                <Route path="/profile" element={<ProfilePage />} /> {/* New Profile route */}
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
