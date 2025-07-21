@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import TasksPage from "./pages/Tasks";
 import TicketsPage from "./pages/Tickets";
 import ServicesPage from "./pages/Services";
+import UserManagementPage from "./pages/UserManagement"; // Import the new page
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/tickets" element={<TicketsPage />} />
               <Route path="/services" element={<ServicesPage />} />
+              <Route path="/users" element={<UserManagementPage />} /> {/* Add the new route */}
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1,0 +1,144 @@
+import React, { useEffect, useState } from 'react';
+import { useSession } from '@/contexts/SessionContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import ProfileForm from '@/components/ProfileForm';
+import { toast } from 'sonner';
+import { Edit } from 'lucide-react';
+
+interface Profile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: 'client' | 'worker' | 'administrator';
+  email: string; // Assuming email can be fetched or joined from auth.users
+}
+
+const UserManagementPage: React.FC = () => {
+  const { supabase, session } = useSession();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+
+  const fetchProfiles = async () => {
+    setLoading(true);
+    // Fetch profiles and join with auth.users to get email
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(`
+        id,
+        first_name,
+        last_name,
+        role,
+        auth_users:auth.users(email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast.error('Failed to load profiles: ' + error.message);
+    } else {
+      const formattedProfiles: Profile[] = data.map((p: any) => ({
+        id: p.id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        role: p.role,
+        email: p.auth_users?.email || 'N/A',
+      }));
+      setProfiles(formattedProfiles);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+      fetchProfiles();
+    }
+  }, [supabase, session]);
+
+  const handleEditProfileClick = (profile: Profile) => {
+    setEditingProfile(profile);
+    setIsFormOpen(true);
+  };
+
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    fetchProfiles();
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading users...</div>;
+  }
+
+  if (currentUserRole !== 'administrator') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">User Management</h1>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {profiles.length === 0 ? (
+          <p className="col-span-full text-center text-gray-500">No user profiles found.</p>
+        ) : (
+          profiles.map((profile) => (
+            <Card key={profile.id} className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="flex justify-between items-center">
+                  {profile.first_name} {profile.last_name}
+                  <div className="flex space-x-2">
+                    <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <p>Email: <span className="font-medium">{profile.email}</span></p>
+                  <p>Role: <span className="font-medium capitalize">{profile.role}</span></p>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+          </DialogHeader>
+          {editingProfile && <ProfileForm initialData={editingProfile} onSuccess={handleFormSuccess} />}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default UserManagementPage;

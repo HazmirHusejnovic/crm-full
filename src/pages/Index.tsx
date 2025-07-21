@@ -1,6 +1,6 @@
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/contexts/SessionContext";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,12 +8,27 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const Index = () => {
   const { session, supabase } = useSession();
   const navigate = useNavigate();
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session) {
       navigate('/login');
+    } else {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+        } else {
+          setUserRole(data.role);
+        }
+      };
+      fetchUserRole();
     }
-  }, [session, navigate]);
+  }, [session, navigate, supabase]);
 
   if (!session) {
     return null; // Or a loading spinner
@@ -46,6 +61,11 @@ const Index = () => {
           <Link to="/services">
             <Button className="w-48">Manage Services</Button>
           </Link>
+          {userRole === 'administrator' && (
+            <Link to="/users">
+              <Button className="w-48">Manage Users</Button>
+            </Link>
+          )}
           {/* Add more navigation links here as modules are built */}
         </div>
       </div>
