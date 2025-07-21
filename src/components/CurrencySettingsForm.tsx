@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import LoadingSpinner from './LoadingSpinner';
+import { Separator } from '@/components/ui/separator'; // Ensure Separator is imported
 
 // Schemas
 const currencySchema = z.object({
@@ -136,14 +137,12 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
     }
 
     setLoading(false);
-    if (!hasError) {
-      onSuccess?.();
-    }
+    // Removed onSuccess?.() here to prevent re-render loop
   };
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase]);
+  }, [supabase]); // Only re-fetch when supabase client changes (effectively once on mount)
 
   const handleAddCurrency = async (values: CurrencyFormValues) => {
     const { error } = await supabase.from('currencies').insert(values);
@@ -152,7 +151,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
     } else {
       toast.success('Currency added successfully!');
       currencyForm.reset();
-      fetchAllData();
+      fetchAllData(); // Re-fetch internal data
     }
   };
 
@@ -163,7 +162,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
       toast.error('Failed to delete currency: ' + error.message);
     } else {
       toast.success('Currency deleted successfully!');
-      fetchAllData();
+      fetchAllData(); // Re-fetch internal data
     }
   };
 
@@ -196,7 +195,8 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
       }
 
       toast.success('Default currency updated successfully!');
-      fetchAllData();
+      fetchAllData(); // Re-fetch internal data
+      onSuccess?.(); // Notify parent to re-fetch app settings
     }
   };
 
@@ -207,7 +207,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
     } else {
       toast.success('Exchange rate added successfully!');
       exchangeRateForm.reset();
-      fetchAllData();
+      fetchAllData(); // Re-fetch internal data
     }
   };
 
@@ -218,7 +218,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
       toast.error('Failed to delete exchange rate: ' + error.message);
     } else {
       toast.success('Exchange rate deleted successfully!');
-      fetchAllData();
+      fetchAllData(); // Re-fetch internal data
     }
   };
 
