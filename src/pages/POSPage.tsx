@@ -82,7 +82,7 @@ const POSPage: React.FC = () => {
     const fetchClients = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, users(email)')
+        .select('id, first_name, last_name, auth_users:auth.users(email)') // Corrected join syntax
         .eq('role', 'client');
 
       if (error) {
@@ -92,7 +92,7 @@ const POSPage: React.FC = () => {
           id: profile.id,
           first_name: profile.first_name,
           last_name: profile.last_name,
-          email: profile.users?.email || 'N/A',
+          email: profile.auth_users?.email || 'N/A', // Access email from auth_users alias
         }));
         setClients(clientsWithEmails);
       }
@@ -257,6 +257,7 @@ const POSPage: React.FC = () => {
         <LoadingSpinner size={48} />
       </div>
     );
+  );
   }
 
   return (

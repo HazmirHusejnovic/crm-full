@@ -40,7 +40,8 @@ const UserManagementPage: React.FC = () => {
         id,
         first_name,
         last_name,
-        role
+        role,
+        auth_users:auth.users(email)
       `);
 
     if (searchTerm) {
@@ -60,19 +61,12 @@ const UserManagementPage: React.FC = () => {
       return;
     }
 
-    const profilesWithEmails = await Promise.all(data.map(async (profile: any) => {
-      const { data: userData, error: userError } = await supabase
-        .from('profiles')
-        .select('users(email)')
-        .eq('id', profile.id)
-        .single();
-
-      if (userError) {
-        console.error('Error fetching email for profile:', profile.id, userError.message);
-        return { ...profile, email: 'Error fetching email' };
-      } else {
-        return { ...profile, email: userData?.users?.email || 'N/A' };
-      }
+    const profilesWithEmails = data.map((profile: any) => ({
+      id: profile.id,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      role: profile.role,
+      email: profile.auth_users?.email || 'N/A', // Access email from auth_users alias
     }));
 
     setProfiles(profilesWithEmails as Profile[]);
