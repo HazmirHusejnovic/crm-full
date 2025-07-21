@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'; // Import Select components
+} from '@/components/ui/select';
 
 interface Product {
   id: string;
@@ -43,8 +43,9 @@ const POSPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [clients, setClients] = useState<ClientProfile[]>([]); // New state for clients
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null); // New state for selected client
+  const [clients, setClients] = useState<ClientProfile[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash'); // New state for payment method
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -173,12 +174,15 @@ const POSPage: React.FC = () => {
         .from('invoices')
         .insert({
           invoice_number: invoiceNumber,
-          client_id: selectedClientId, // Use selected client ID
+          client_id: selectedClientId,
           issue_date: issueDate,
           due_date: dueDate,
           total_amount: totalAmount,
           status: 'paid', // Mark as paid for immediate POS sale
           created_by: session.user.id,
+          // If you want to store the payment method in the database,
+          // you would need to add a 'payment_method' column to your 'invoices' table.
+          // For example: payment_method: selectedPaymentMethod,
         })
         .select('id')
         .single();
@@ -231,6 +235,7 @@ const POSPage: React.FC = () => {
       toast.success('Sale processed successfully!', { id: loadingToastId });
       setCart([]); // Clear cart
       setSelectedClientId(null); // Clear selected client
+      setSelectedPaymentMethod('cash'); // Reset payment method
       // Optionally navigate to the new invoice or a confirmation page
       navigate(`/invoices/print/${invoiceId}`); // Navigate to printable invoice
     } catch (error: any) {
@@ -321,6 +326,20 @@ const POSPage: React.FC = () => {
                       {client.first_name} {client.last_name} ({client.email})
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="payment-method-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
+              <Select onValueChange={setSelectedPaymentMethod} value={selectedPaymentMethod}>
+                <SelectTrigger id="payment-method-select">
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
