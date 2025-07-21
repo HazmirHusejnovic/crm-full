@@ -87,6 +87,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
       ...values,
       created_by: session.user.id,
       due_date: values.due_date ? new Date(values.due_date).toISOString() : null,
+      assigned_to: values.assigned_to === 'null-value' ? null : values.assigned_to, // Handle null-value
     };
 
     let error = null;
@@ -172,14 +173,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Assigned To</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a worker" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})

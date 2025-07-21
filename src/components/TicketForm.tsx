@@ -106,6 +106,8 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
     const ticketData = {
       ...values,
       created_by: session.user.id,
+      assigned_to: values.assigned_to === 'null-value' ? null : values.assigned_to, // Handle null-value
+      linked_task_id: values.linked_task_id === 'null-value' ? null : values.linked_task_id, // Handle null-value
     };
 
     let error = null;
@@ -215,14 +217,14 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Assigned To</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a worker" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})
@@ -240,14 +242,14 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Link to Task</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">No Task Linked</SelectItem>
+                  <SelectItem value="null-value">No Task Linked</SelectItem> {/* Changed value */}
                   {tasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}
