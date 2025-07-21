@@ -109,7 +109,6 @@ const InvoiceFormPage: React.FC = () => {
         </div>
       </MainLayout>
     );
-  );
   }
 
   if (error) {
