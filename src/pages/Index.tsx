@@ -40,6 +40,9 @@ const Index = () => {
           <Link to="/tasks">
             <Button className="w-48">Go to Tasks</Button>
           </Link>
+          <Link to="/tickets">
+            <Button className="w-48">Go to Tickets</Button>
+          </Link>
           {/* Add more navigation links here as modules are built */}
         </div>
       </div>

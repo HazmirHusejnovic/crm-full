@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import TasksPage from "./pages/Tasks";
+import TicketsPage from "./pages/Tickets";
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 
@@ -24,12 +25,14 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Index />} />
               <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/tickets" element={<TicketsPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SessionContextProvider>
         </BrowserRouter>
       </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
