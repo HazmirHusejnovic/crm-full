@@ -14,6 +14,10 @@ const Index = () => {
     if (!session) {
       navigate('/login');
     } else {
+      // Redirect to dashboard if already logged in and on the root path
+      if (window.location.pathname === '/') {
+        navigate('/dashboard');
+      }
       const fetchUserRole = async () => {
         const { data, error } = await supabase
           .from('profiles')
@@ -52,6 +56,9 @@ const Index = () => {
           Your CRM dashboard will be built here.
         </p>
         <div className="flex flex-col space-y-4">
+          <Link to="/dashboard">
+            <Button className="w-48">Go to Dashboard</Button>
+          </Link>
           <Link to="/tasks">
             <Button className="w-48">Go to Tasks</Button>
           </Link>

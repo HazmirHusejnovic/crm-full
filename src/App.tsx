@@ -9,7 +9,8 @@ import Login from "./pages/Login";
 import TasksPage from "./pages/Tasks";
 import TicketsPage from "./pages/Tickets";
 import ServicesPage from "./pages/Services";
-import UserManagementPage from "./pages/UserManagement"; // Import the new page
+import UserManagementPage from "./pages/UserManagement";
+import DashboardPage from "./pages/Dashboard"; // Import the new Dashboard page
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 
@@ -25,11 +26,12 @@ const App = () => (
           <SessionContextProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<Index />} /> {/* Index is now the navigation hub */}
+              <Route path="/dashboard" element={<DashboardPage />} /> {/* New Dashboard route */}
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/tickets" element={<TicketsPage />} />
               <Route path="/services" element={<ServicesPage />} />
-              <Route path="/users" element={<UserManagementPage />} /> {/* Add the new route */}
+              <Route path="/users" element={<UserManagementPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
