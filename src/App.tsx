@@ -82,7 +82,7 @@ const AppRoutes = () => {
           console.error('Error fetching user role:', roleError.message);
           toast.error('Failed to fetch user role for routing.');
         } else {
-          setCurrentUserRole(data.role);
+          setCurrentUserRole(roleData.role); // Corrected from data.role to roleData.role
         }
       }
       setLoadingSettings(false);
@@ -99,7 +99,7 @@ const AppRoutes = () => {
     const moduleEnabled = appSettings[moduleKey];
     const userHasRequiredRole = requiredRoles.includes(currentUserRole);
 
-    return moduleEnabled && userHasRequiredRequiredRole;
+    return moduleEnabled && userHasRequiredRole; // Corrected from userHasRequiredRequiredRole to userHasRequiredRole
   };
 
   if (loadingSettings) {
