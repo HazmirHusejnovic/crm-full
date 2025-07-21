@@ -56,21 +56,25 @@ interface ServiceCategory {
 const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
-
-  const form = useForm<ServiceFormValues>({
-    resolver: zodResolver(serviceFormSchema),
-    defaultValues: {
-      name: initialData?.name || '',
-      description: initialData?.description || '',
-      category_id: initialData?.category_id || '',
-      default_price: initialData?.default_price || 0,
-      duration_minutes: initialData?.duration_minutes || 0,
-      vat_rate: initialData?.vat_rate || 0.17,
-    },
-  });
+  const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchSettingsAndCategories = async () => {
+      // Fetch default VAT rate
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('default_vat_rate')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Failed to load default VAT rate from settings:', settingsError.message);
+        // Fallback to hardcoded default if settings not found
+      } else if (settingsData) {
+        setDefaultVatRate(settingsData.default_vat_rate);
+      }
+
+      // Fetch categories
       const { data, error } = await supabase
         .from('service_categories')
         .select('id, name');
@@ -82,8 +86,27 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
       }
     };
 
-    fetchCategories();
+    fetchSettingsAndCategories();
   }, [supabase]);
+
+  const form = useForm<ServiceFormValues>({
+    resolver: zodResolver(serviceFormSchema),
+    defaultValues: {
+      name: initialData?.name || '',
+      description: initialData?.description || '',
+      category_id: initialData?.category_id || '',
+      default_price: initialData?.default_price || 0,
+      duration_minutes: initialData?.duration_minutes || 0,
+      vat_rate: initialData?.vat_rate ?? defaultVatRate, // Use fetched default or initialData
+    },
+  });
+
+  // Update form default value for vat_rate if defaultVatRate changes and it's a new service
+  useEffect(() => {
+    if (!initialData?.id && defaultVatRate !== form.getValues('vat_rate')) {
+      form.setValue('vat_rate', defaultVatRate);
+    }
+  }, [defaultVatRate, initialData, form]);
 
   const onSubmit = async (values: ServiceFormValues) => {
     if (!session?.user?.id) {

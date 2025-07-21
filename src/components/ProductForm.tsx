@@ -57,22 +57,25 @@ interface ProductCategory {
 const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<ProductCategory[]>([]);
-
-  const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productFormSchema),
-    defaultValues: {
-      name: initialData?.name || '',
-      description: initialData?.description || '',
-      price: initialData?.price || 0,
-      stock_quantity: initialData?.stock_quantity || 0,
-      category_id: initialData?.category_id || null,
-      sku: initialData?.sku || '',
-      vat_rate: initialData?.vat_rate || 0.17, // Default VAT rate
-    },
-  });
+  const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchSettingsAndCategories = async () => {
+      // Fetch default VAT rate
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('default_vat_rate')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Failed to load default VAT rate from settings:', settingsError.message);
+        // Fallback to hardcoded default if settings not found
+      } else if (settingsData) {
+        setDefaultVatRate(settingsData.default_vat_rate);
+      }
+
+      // Fetch categories
       const { data, error } = await supabase
         .from('product_categories')
         .select('id, name');
@@ -84,8 +87,29 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
       }
     };
 
-    fetchCategories();
+    fetchSettingsAndCategories();
   }, [supabase]);
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      name: initialData?.name || '',
+      description: initialData?.description || '',
+      price: initialData?.price || 0,
+      stock_quantity: initialData?.stock_quantity || 0,
+      category_id: initialData?.category_id || null,
+      sku: initialData?.sku || '',
+      vat_rate: initialData?.vat_rate ?? defaultVatRate, // Use fetched default or initialData
+    },
+  });
+
+  // Update form default value for vat_rate if defaultVatRate changes and it's a new product
+  useEffect(() => {
+    if (!initialData?.id && defaultVatRate !== form.getValues('vat_rate')) {
+      form.setValue('vat_rate', defaultVatRate);
+    }
+  }, [defaultVatRate, initialData, form]);
+
 
   const onSubmit = async (values: ProductFormValues) => {
     if (!session?.user?.id) {

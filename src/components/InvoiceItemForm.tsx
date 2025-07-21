@@ -59,10 +59,26 @@ interface InvoiceItemFormProps {
 const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, onRemove }) => {
   const { supabase } = useSession();
   const [services, setServices] = useState<Service[]>([]);
+  const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
   const { control, setValue, trigger, getValues } = useFormContext(); // Get control from parent context
 
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchSettingsAndServices = async () => {
+      // Fetch default VAT rate
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('default_vat_rate')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Failed to load default VAT rate from settings:', settingsError.message);
+        // Fallback to hardcoded default if settings not found
+      } else if (settingsData) {
+        setDefaultVatRate(settingsData.default_vat_rate);
+      }
+
+      // Fetch services
       const { data, error } = await supabase
         .from('services')
         .select('id, name, description, default_price, vat_rate');
@@ -73,8 +89,18 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, onRemove }) =>
         setServices(data);
       }
     };
-    fetchServices();
+    fetchSettingsAndServices();
   }, [supabase]);
+
+  // Set default VAT rate for new items if it changes
+  useEffect(() => {
+    const currentVatRate = getValues(`items.${index}.vat_rate`);
+    // Only set if it's a new item (no service_id selected yet) and current VAT is 0 or default
+    if (!getValues(`items.${index}.service_id`) && (currentVatRate === 0 || currentVatRate === 0.17)) {
+      setValue(`items.${index}.vat_rate`, defaultVatRate);
+    }
+  }, [defaultVatRate, index, setValue, getValues]);
+
 
   const handleServiceChange = (serviceId: string) => {
     if (serviceId === 'custom') {
@@ -82,7 +108,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({ index, onRemove }) =>
       setValue(`items.${index}.description`, '');
       setValue(`items.${index}.quantity`, 1);
       setValue(`items.${index}.unit_price`, 0);
-      setValue(`items.${index}.vat_rate`, 0);
+      setValue(`items.${index}.vat_rate`, defaultVatRate); // Use default VAT for custom
     } else {
       const selectedService = services.find(s => s.id === serviceId);
       if (selectedService) {
