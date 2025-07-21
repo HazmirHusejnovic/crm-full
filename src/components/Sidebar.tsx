@@ -81,6 +81,24 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     const fetchSettingsAndRole = async () => {
       setLoadingSettings(true);
+      if (!session) {
+        setLoadingSettings(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setUserRole(roleData.role);
+      }
+
       // Fetch app settings
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
@@ -93,21 +111,6 @@ const Sidebar: React.FC = () => {
         toast.error('Failed to load app settings.');
       } else {
         setAppSettings(settingsData as AppSettings);
-      }
-
-      // Fetch user role
-      if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch user role.');
-        } else {
-          setUserRole(roleData.role);
-        }
       }
       setLoadingSettings(false);
     };
@@ -125,7 +128,7 @@ const Sidebar: React.FC = () => {
   };
 
   // Use the new usePermissions hook
-  const { canViewModule } = usePermissions(appSettings, userRole);
+  const { canViewModule } = usePermissions(appSettings, userRole as 'client' | 'worker' | 'administrator');
 
   if (loadingSettings) {
     return (

@@ -58,8 +58,7 @@ const WikiPage: React.FC = () => {
   const [categories, setCategories] = useState<WikiCategory[]>([]);
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [articleVersions, setArticleVersions] = useState<WikiArticleVersion[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-  const [loadingArticles, setLoadingArticles] = useState(true);
+  const [loading, setLoading] = useState(true); // Consolidated loading state
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isArticleFormOpen, setIsArticleFormOpen] = useState(false);
@@ -74,73 +73,73 @@ const WikiPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      if (!session) {
-        setLoadingCategories(false);
-        setLoadingArticles(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-    };
-
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
-  const fetchCategories = async () => {
-    setLoadingCategories(true);
-    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
-      setLoadingCategories(false);
+  const fetchAllData = async () => {
+    setLoading(true);
+    let currentRole: string | null = null;
+    let currentSettings: AppSettings | null = null;
+
+    if (!session) {
+      setLoading(false);
       return;
     }
-    const { data, error } = await supabase
+
+    // Fetch user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+    } else {
+      currentRole = roleData.role;
+      setCurrentUserRole(roleData.role);
+    }
+
+    // Fetch app settings
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('module_permissions')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+
+    if (settingsError) {
+      console.error('Error fetching app settings:', settingsError.message);
+      toast.error('Failed to load app settings.');
+    } else {
+      currentSettings = settingsData as AppSettings;
+      setAppSettings(settingsData as AppSettings);
+    }
+
+    if (!currentRole || !currentSettings) {
+      setLoading(false);
+      return;
+    }
+
+    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
+
+    if (!checkViewModule('wiki')) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch categories
+    const { data: categoriesData, error: categoriesError } = await supabase
       .from('wiki_categories')
       .select('*')
       .order('name', { ascending: true });
 
-    if (error) {
-      toast.error('Failed to load wiki categories: ' + error.message);
+    if (categoriesError) {
+      toast.error('Failed to load wiki categories: ' + categoriesError.message);
     } else {
-      setCategories(data as WikiCategory[]);
+      setCategories(categoriesData as WikiCategory[]);
     }
-    setLoadingCategories(false);
-  };
 
-  const fetchArticles = async () => {
-    setLoadingArticles(true);
-    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
-      setLoadingArticles(false);
-      return;
-    }
-    let query = supabase
+    // Fetch articles
+    let articleQuery = supabase
       .from('wiki_articles_with_details')
       .select(`
         id,
@@ -160,26 +159,30 @@ const WikiPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      query = query.ilike('title', `%${searchTerm}%`);
+      articleQuery = articleQuery.ilike('title', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId);
+      articleQuery = articleQuery.eq('category_id', filterCategoryId);
     }
 
     if (filterVisibility !== 'all') {
-      query = query.eq('visibility', filterVisibility);
+      articleQuery = articleQuery.eq('visibility', filterVisibility);
     }
 
-    const { data, error } = await query.order('title', { ascending: true });
+    const { data: articlesData, error: articlesError } = await articleQuery.order('title', { ascending: true });
 
-    if (error) {
-      toast.error('Failed to load wiki articles: ' + error.message);
+    if (articlesError) {
+      toast.error('Failed to load wiki articles: ' + articlesError.message);
     } else {
-      setArticles(data as WikiArticle[]);
+      setArticles(articlesData as WikiArticle[]);
     }
-    setLoadingArticles(false);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    fetchAllData();
+  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session]); // Dependencies are just supabase, searchTerm, filterCategoryId, filterVisibility, and session.
 
   const fetchArticleVersions = async (articleId: string) => {
     setLoadingVersions(true);
@@ -203,14 +206,6 @@ const WikiPage: React.FC = () => {
     setLoadingVersions(false);
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
-
-  useEffect(() => {
-    fetchArticles();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
-
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
     setIsCategoryFormOpen(true);
@@ -233,8 +228,7 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to delete category: ' + error.message);
     } else {
       toast.success('Category deleted successfully!');
-      fetchCategories();
-      fetchArticles();
+      fetchAllData(); // Re-fetch all data
     }
   };
 
@@ -271,21 +265,21 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to delete article: ' + error.message);
     } else {
       toast.success('Article deleted successfully!');
-      fetchArticles();
+      fetchAllData(); // Re-fetch all data
     }
   };
 
   const handleCategoryFormSuccess = () => {
     setIsCategoryFormOpen(false);
-    fetchCategories();
+    fetchAllData();
   };
 
   const handleArticleFormSuccess = () => {
     setIsArticleFormOpen(false);
-    fetchArticles();
+    fetchAllData();
   };
 
-  if (loadingCategories || loadingArticles) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

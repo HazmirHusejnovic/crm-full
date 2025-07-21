@@ -42,8 +42,7 @@ const ProductsPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loading, setLoading] = useState(true); // Consolidated loading state
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | undefined>(undefined);
@@ -53,73 +52,73 @@ const ProductsPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      if (!session) {
-        setLoadingCategories(false);
-        setLoadingProducts(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-    };
-
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
-  const fetchCategories = async () => {
-    setLoadingCategories(true);
-    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
-      setLoadingCategories(false);
+  const fetchAllData = async () => {
+    setLoading(true);
+    let currentRole: string | null = null;
+    let currentSettings: AppSettings | null = null;
+
+    if (!session) {
+      setLoading(false);
       return;
     }
-    const { data, error } = await supabase
+
+    // Fetch user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+    } else {
+      currentRole = roleData.role;
+      setCurrentUserRole(roleData.role);
+    }
+
+    // Fetch app settings
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('module_permissions')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+
+    if (settingsError) {
+      console.error('Error fetching app settings:', settingsError.message);
+      toast.error('Failed to load app settings.');
+    } else {
+      currentSettings = settingsData as AppSettings;
+      setAppSettings(settingsData as AppSettings);
+    }
+
+    if (!currentRole || !currentSettings) {
+      setLoading(false);
+      return;
+    }
+
+    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
+
+    if (!checkViewModule('products')) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch categories
+    const { data: categoriesData, error: categoriesError } = await supabase
       .from('product_categories')
       .select('*')
       .order('name', { ascending: true });
 
-    if (error) {
-      toast.error('Failed to load product categories: ' + error.message);
+    if (categoriesError) {
+      toast.error('Failed to load product categories: ' + categoriesError.message);
     } else {
-      setCategories(data as ProductCategory[]);
+      setCategories(categoriesData as ProductCategory[]);
     }
-    setLoadingCategories(false);
-  };
 
-  const fetchProducts = async () => {
-    setLoadingProducts(true);
-    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
-      setLoadingProducts(false);
-      return;
-    }
-    let query = supabase
+    // Fetch products
+    let productQuery = supabase
       .from('products')
       .select(`
         id,
@@ -135,30 +134,26 @@ const ProductsPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      query = query.ilike('name', `%${searchTerm}%`);
+      productQuery = productQuery.ilike('name', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId);
+      productQuery = productQuery.eq('category_id', filterCategoryId);
     }
 
-    const { data, error } = await query.order('name', { ascending: true });
+    const { data: productsData, error: productsError } = await productQuery.order('name', { ascending: true });
 
-    if (error) {
-      toast.error('Failed to load products: ' + error.message);
+    if (productsError) {
+      toast.error('Failed to load products: ' + productsError.message);
     } else {
-      setProducts(data as Product[]);
+      setProducts(productsData as Product[]);
     }
-    setLoadingProducts(false);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
-
-  useEffect(() => {
-    fetchProducts();
-  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+    fetchAllData();
+  }, [supabase, searchTerm, filterCategoryId, session]); // Dependencies are just supabase, searchTerm, filterCategoryId, and session.
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -182,8 +177,7 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to delete category: ' + error.message);
     } else {
       toast.success('Category deleted successfully!');
-      fetchCategories();
-      fetchProducts(); // Refresh products as well
+      fetchAllData(); // Re-fetch all data
     }
   };
 
@@ -209,21 +203,21 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to delete product: ' + error.message);
     } else {
       toast.success('Product deleted successfully!');
-      fetchProducts();
+      fetchAllData(); // Re-fetch all data
     }
   };
 
   const handleCategoryFormSuccess = () => {
     setIsCategoryFormOpen(false);
-    fetchCategories();
+    fetchAllData();
   };
 
   const handleProductFormSuccess = () => {
     setIsProductFormOpen(false);
-    fetchProducts();
+    fetchAllData();
   };
 
-  if (loadingCategories || loadingProducts) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

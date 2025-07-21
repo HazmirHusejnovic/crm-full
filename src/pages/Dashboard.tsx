@@ -29,16 +29,19 @@ const DashboardPage: React.FC = () => {
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
+    const fetchPageData = async () => {
+      setLoading(true); // Start loading for the entire page
+
       if (!session) {
         setLoading(false);
-        return;
+        return; // No session, cannot fetch anything
       }
 
-      // Fetch user role
+      // 1. Fetch user role
+      let role: string | null = null;
       const { data: roleData, error: roleError } = await supabase
         .from('profiles')
         .select('role')
@@ -48,10 +51,12 @@ const DashboardPage: React.FC = () => {
         console.error('Error fetching user role:', roleError.message);
         toast.error('Failed to fetch your user role.');
       } else {
+        role = roleData.role;
         setCurrentUserRole(roleData.role);
       }
 
-      // Fetch app settings
+      // 2. Fetch app settings
+      let settings: AppSettings | null = null;
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
         .select('module_permissions')
@@ -62,36 +67,37 @@ const DashboardPage: React.FC = () => {
         console.error('Error fetching app settings:', settingsError.message);
         toast.error('Failed to load app settings.');
       } else {
+        settings = settingsData as AppSettings;
         setAppSettings(settingsData as AppSettings);
       }
-    };
 
-    fetchSettingsAndRole();
-  }, [supabase, session]);
+      // If we failed to get role or settings, we can't check permissions reliably.
+      // In a real app, you might want a more robust error page or retry mechanism.
+      // For now, if permissions cannot be determined, assume no access.
+      if (!role || !settings) {
+        setLoading(false);
+        return;
+      }
 
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+      // 3. Check permissions using the fetched role and settings
+      const { canViewModule: checkViewModule } = usePermissions(settings, role as 'client' | 'worker' | 'administrator');
 
-  useEffect(() => {
-    if (!session || !appSettings || !currentUserRole) return; // Wait for session, settings, and role
+      if (!checkViewModule('dashboard')) {
+        setLoading(false);
+        return; // Not authorized to view this module
+      }
 
-    if (!canViewModule('dashboard')) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchDashboardStats = async () => {
-      setLoading(true);
-      let hasError = false;
+      // 4. Fetch dashboard specific data
+      let hasDataFetchError = false;
 
       // Fetch open tasks count
       const { count: openTasksCount, error: tasksError } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
         .in('status', ['pending', 'in_progress']);
-
       if (tasksError) {
         toast.error('Failed to load tasks count: ' + tasksError.message);
-        hasError = true;
+        hasDataFetchError = true;
       }
 
       // Fetch open tickets count
@@ -99,10 +105,9 @@ const DashboardPage: React.FC = () => {
         .from('tickets')
         .select('*', { count: 'exact', head: true })
         .in('status', ['open', 'in_progress', 'reopened']);
-
       if (ticketsError) {
         toast.error('Failed to load tickets count: ' + ticketsError.message);
-        hasError = true;
+        hasDataFetchError = true;
       }
 
       // Fetch completed tasks today
@@ -117,34 +122,27 @@ const DashboardPage: React.FC = () => {
         .eq('status', 'completed')
         .gte('updated_at', today.toISOString())
         .lt('updated_at', tomorrow.toISOString());
-
       if (completedTasksError) {
         toast.error('Failed to load completed tasks today count: ' + completedTasksError.message);
-        hasError = true;
+        hasDataFetchError = true;
       }
 
       // Fetch all tasks to count by status for the chart
       const { data: allTasks, error: allTasksError } = await supabase
         .from('tasks')
         .select('status');
-
       if (allTasksError) {
         toast.error('Failed to load all tasks for status counts: ' + allTasksError.message);
-        hasError = true;
+        hasDataFetchError = true;
       } else {
         const statusCounts: { [key: string]: number } = {
-          pending: 0,
-          in_progress: 0,
-          completed: 0,
-          cancelled: 0,
+          pending: 0, in_progress: 0, completed: 0, cancelled: 0,
         };
-
         allTasks.forEach((task: { status: string }) => {
           if (statusCounts.hasOwnProperty(task.status)) {
             statusCounts[task.status]++;
           }
         });
-
         const chartData: TaskStatusData[] = [
           { name: 'Pending', count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
           { name: 'In Progress', count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
@@ -154,18 +152,22 @@ const DashboardPage: React.FC = () => {
         setTaskStatusData(chartData);
       }
 
-      if (!hasError) {
+      if (!hasDataFetchError) {
         setStats({
           openTasks: openTasksCount || 0,
           openTickets: openTicketsCount || 0,
           completedTasksToday: completedTasksTodayCount || 0,
         });
       }
-      setLoading(false);
+      setLoading(false); // End loading for the entire page
     };
 
-    fetchDashboardStats();
-  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
+    fetchPageData();
+  }, [supabase, session]); // Only depend on supabase and session. All other data is fetched internally.
+
+  // The usePermissions hook is called here, outside the useEffect,
+  // so it reacts to changes in appSettings and currentUserRole state.
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   if (loading) {
     return (
@@ -175,6 +177,8 @@ const DashboardPage: React.FC = () => {
     );
   }
 
+  // This check now relies on the state variables `appSettings` and `currentUserRole`
+  // which are set by the `useEffect` above. If `loading` is false, these should be populated.
   if (!canViewModule('dashboard')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">

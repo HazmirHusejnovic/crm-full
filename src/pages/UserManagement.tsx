@@ -39,54 +39,55 @@ const UserManagementPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-    };
-
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchProfiles = async () => {
     setLoading(true);
-    if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+    let currentRole: string | null = null;
+    let currentSettings: AppSettings | null = null;
+
+    if (!session) {
       setLoading(false);
       return;
     }
 
-    if (!canViewModule('users')) {
+    // Fetch user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+    } else {
+      currentRole = roleData.role;
+      setCurrentUserRole(roleData.role);
+    }
+
+    // Fetch app settings
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('module_permissions')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+
+    if (settingsError) {
+      console.error('Error fetching app settings:', settingsError.message);
+      toast.error('Failed to load app settings.');
+    } else {
+      currentSettings = settingsData as AppSettings;
+      setAppSettings(settingsData as AppSettings);
+    }
+
+    if (!currentRole || !currentSettings) {
+      setLoading(false);
+      return;
+    }
+
+    const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
+
+    if (!checkViewModule('users')) {
       setLoading(false);
       return;
     }
@@ -124,7 +125,7 @@ const UserManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchProfiles();
-  }, [supabase, session, searchTerm, filterRole, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+  }, [supabase, session, searchTerm, filterRole]); // Dependencies are just supabase, session, searchTerm, and filterRole.
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);

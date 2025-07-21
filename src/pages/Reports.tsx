@@ -39,8 +39,14 @@ const ReportsPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
+    const fetchReportData = async () => {
+      setLoading(true);
+      let currentRole: string | null = null;
+      let currentSettings: AppSettings | null = null;
+
       if (!session) {
         setLoading(false);
         return;
@@ -56,6 +62,7 @@ const ReportsPage: React.FC = () => {
         console.error('Error fetching user role:', roleError.message);
         toast.error('Failed to fetch your user role.');
       } else {
+        currentRole = roleData.role;
         setCurrentUserRole(roleData.role);
       }
 
@@ -70,25 +77,22 @@ const ReportsPage: React.FC = () => {
         console.error('Error fetching app settings:', settingsError.message);
         toast.error('Failed to load app settings.');
       } else {
+        currentSettings = settingsData as AppSettings;
         setAppSettings(settingsData as AppSettings);
       }
-    };
 
-    fetchSettingsAndRole();
-  }, [supabase, session]);
+      if (!currentRole || !currentSettings) {
+        setLoading(false);
+        return;
+      }
 
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
 
-  useEffect(() => {
-    if (!session || !appSettings || !currentUserRole) return; // Wait for all dependencies
+      if (!checkViewModule('reports')) {
+        setLoading(false);
+        return; // Exit if not authorized
+      }
 
-    if (!canViewModule('reports')) {
-      setLoading(false);
-      return; // Exit if not authorized
-    }
-
-    const fetchReportData = async () => {
-      setLoading(true);
       let hasError = false;
 
       // Fetch all tasks to count by status for the chart
@@ -192,7 +196,7 @@ const ReportsPage: React.FC = () => {
     };
 
     fetchReportData();
-  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
+  }, [supabase, session]); // Dependencies are just supabase and session.
 
   if (loading) {
     return (

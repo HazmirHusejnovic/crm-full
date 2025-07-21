@@ -55,6 +55,7 @@ interface ExchangeRate {
 
 interface AppSettings {
   module_permissions: Record<string, Record<string, string[]>> | null;
+  default_currency_id: string | null;
 }
 
 const POSPage: React.FC = () => {
@@ -74,8 +75,14 @@ const POSPage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
+    const fetchAllData = async () => {
+      setLoading(true);
+      let currentRole: string | null = null;
+      let currentSettings: AppSettings | null = null;
+
       if (!session) {
         setLoading(false);
         return;
@@ -91,6 +98,7 @@ const POSPage: React.FC = () => {
         console.error('Error fetching user role:', roleError.message);
         toast.error('Failed to fetch your user role.');
       } else {
+        currentRole = roleData.role;
         setCurrentUserRole(roleData.role);
       }
 
@@ -105,28 +113,22 @@ const POSPage: React.FC = () => {
         console.error('Error fetching app settings:', settingsError.message);
         toast.error('Failed to load app settings.');
       } else {
+        currentSettings = settingsData as AppSettings;
         setAppSettings(settingsData as AppSettings);
         setAppDefaultCurrencyId(settingsData?.default_currency_id || null);
         if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
           setSelectedCurrencyId(settingsData?.default_currency_id || null);
         }
       }
-    };
 
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
-  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+      if (!currentRole || !currentSettings) {
         setLoading(false);
         return;
       }
 
-      if (!canViewModule('pos')) {
+      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
+
+      if (!checkViewModule('pos')) {
         setLoading(false);
         return; // Exit if not authorized
       }
@@ -200,8 +202,8 @@ const POSPage: React.FC = () => {
       setLoading(false);
     };
 
-    fetchData();
-  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole, canViewModule]);
+    fetchAllData();
+  }, [supabase, searchTerm, selectedCurrencyId, session]); // Dependencies are just supabase, searchTerm, selectedCurrencyId, and session.
 
   // Update selected currency when client changes
   useEffect(() => {

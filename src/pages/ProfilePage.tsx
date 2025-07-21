@@ -12,6 +12,7 @@ interface Profile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
+  default_currency_id: string | null; // Add this field as it's used in ProfileForm
 }
 
 interface AppSettings {
@@ -25,9 +26,15 @@ const ProfilePage: React.FC = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      if (!session) {
+    const fetchProfileData = async () => {
+      setLoading(true);
+      let currentRole: string | null = null;
+      let currentSettings: AppSettings | null = null;
+
+      if (!session?.user?.id) {
         setLoading(false);
         return;
       }
@@ -42,6 +49,7 @@ const ProfilePage: React.FC = () => {
         console.error('Error fetching user role:', roleError.message);
         toast.error('Failed to fetch your user role.');
       } else {
+        currentRole = roleData.role;
         setCurrentUserRole(roleData.role);
       }
 
@@ -56,28 +64,22 @@ const ProfilePage: React.FC = () => {
         console.error('Error fetching app settings:', settingsError.message);
         toast.error('Failed to load app settings.');
       } else {
+        currentSettings = settingsData as AppSettings;
         setAppSettings(settingsData as AppSettings);
       }
-    };
 
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!session?.user?.id || !appSettings || !currentUserRole) {
+      if (!currentRole || !currentSettings) {
         setLoading(false);
         return;
       }
 
-      if (!canViewModule('profile')) {
+      const { canViewModule: checkViewModule } = usePermissions(currentSettings, currentRole as 'client' | 'worker' | 'administrator');
+
+      if (!checkViewModule('profile')) {
         setLoading(false);
         return;
       }
 
-      setLoading(true);
       const { data, error } = await supabase
         .from('profiles_with_auth_emails') // Use the new view
         .select(`
@@ -85,8 +87,9 @@ const ProfilePage: React.FC = () => {
           first_name,
           last_name,
           role,
-          email
-        `) // Select email directly
+          email,
+          default_currency_id
+        `) // Select email and default_currency_id directly
         .eq('id', session.user.id)
         .single();
 
@@ -98,14 +101,15 @@ const ProfilePage: React.FC = () => {
           first_name: data.first_name,
           last_name: data.last_name,
           role: data.role,
-          email: data.email || 'N/A', // Access email directly
+          email: data.email || 'N/A',
+          default_currency_id: data.default_currency_id,
         });
       }
       setLoading(false);
     };
 
-    fetchProfile();
-  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
+    fetchProfileData();
+  }, [supabase, session]); // Dependencies are just supabase and session.
 
   const handleFormSuccess = () => {
     // Re-fetch profile to show updated data
@@ -118,8 +122,9 @@ const ProfilePage: React.FC = () => {
           first_name,
           last_name,
           role,
-          email
-        `) // Select email directly
+          email,
+          default_currency_id
+        `) // Select email and default_currency_id directly
         .eq('id', session.user.id)
         .single()
         .then(({ data, error }) => {
@@ -131,7 +136,8 @@ const ProfilePage: React.FC = () => {
               first_name: data.first_name,
               last_name: data.last_name,
               role: data.role,
-              email: data.email || 'N/A', // Access email directly
+              email: data.email || 'N/A',
+              default_currency_id: data.default_currency_id,
             });
           }
           setLoading(false);
