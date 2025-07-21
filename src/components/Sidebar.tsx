@@ -17,7 +17,8 @@ import {
   ReceiptText,
   BarChart3,
   Settings,
-  Package, // Import Package icon for Products
+  Package,
+  ShoppingCart, // Import ShoppingCart icon for POS
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -113,9 +114,15 @@ const Sidebar: React.FC = () => {
             />
             <NavLink
               to="/products"
-              icon={Package} // Using Package icon for Products
+              icon={Package}
               label="Products"
               isActive={location.pathname === '/products'}
+            />
+            <NavLink
+              to="/pos"
+              icon={ShoppingCart} // Using ShoppingCart icon for POS
+              label="POS"
+              isActive={location.pathname === '/pos'}
             />
             <NavLink
               to="/invoices"

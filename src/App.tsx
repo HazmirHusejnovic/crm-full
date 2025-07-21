@@ -18,7 +18,8 @@ import ReportsPage from "./pages/Reports";
 import ClientDetailsPage from "./pages/ClientDetailsPage";
 import PrintableInvoice from "./pages/PrintableInvoice";
 import SettingsPage from "./pages/SettingsPage";
-import ProductsPage from "./pages/ProductsPage"; // Import the new ProductsPage
+import ProductsPage from "./pages/ProductsPage";
+import POSPage from "./pages/POSPage"; // Import the new POSPage
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
@@ -41,7 +42,8 @@ const App = () => (
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/services" element={<ServicesPage />} />
-                <Route path="/products" element={<ProductsPage />} /> {/* New route for Products */}
+                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/pos" element={<POSPage />} /> {/* New route for POS */}
                 <Route path="/users" element={<UserManagementPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
