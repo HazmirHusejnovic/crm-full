@@ -89,7 +89,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
     console.log('Attempting to create chat with:', otherParticipantId);
 
     try {
-      // Fetch all chats the current user is a part of
+      // 1. Fetch chat IDs for the current user
       const { data: currentUserChatParticipants, error: currentUserChatsError } = await supabase
         .from('chat_participants')
         .select('chat_id')
@@ -98,13 +98,26 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
       if (currentUserChatsError) {
         throw new Error('Error fetching current user chat memberships: ' + currentUserChatsError.message);
       }
-
       const currentUserChatIds = currentUserChatParticipants.map(p => p.chat_id);
+
+      // 2. Fetch chat IDs for the other participant
+      const { data: otherUserChatParticipants, error: otherUserChatsError } = await supabase
+        .from('chat_participants')
+        .select('chat_id')
+        .eq('user_id', otherParticipantId);
+
+      if (otherUserChatsError) {
+        throw new Error('Error fetching other user chat memberships: ' + otherUserChatsError.message);
+      }
+      const otherUserChatIds = otherUserChatParticipants.map(p => p.chat_id);
+
+      // 3. Find common chat IDs (potential private chats)
+      const commonChatIds = currentUserChatIds.filter(chatId => otherUserChatIds.includes(chatId));
 
       let existingPrivateChatId: string | null = null;
 
-      if (currentUserChatIds.length > 0) {
-        // Fetch details for these chats, including participants, and filter for private chats
+      if (commonChatIds.length > 0) {
+        // 4. For each common chat ID, check if it's a 'private' chat with exactly two participants
         const { data: chatsDetails, error: chatsDetailsError } = await supabase
           .from('chats')
           .select(`
@@ -112,14 +125,13 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
             type,
             chat_participants(user_id)
           `)
-          .in('id', currentUserChatIds)
+          .in('id', commonChatIds)
           .eq('type', 'private'); // Only consider private chats
 
         if (chatsDetailsError) {
-          throw new Error('Error fetching chat details: ' + chatsDetailsError.message);
+          throw new Error('Error fetching chat details for common IDs: ' + chatsDetailsError.message);
         }
 
-        // Check if any of these private chats include the other participant and have exactly two participants
         const foundChat = chatsDetails.find(chat =>
           chat.chat_participants.length === 2 &&
           chat.chat_participants.some((p: { user_id: string }) => p.user_id === otherParticipantId)
