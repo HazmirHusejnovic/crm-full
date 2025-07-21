@@ -14,7 +14,8 @@ import {
   Users,
   LogOut,
   User,
-  ReceiptText, // Import ReceiptText icon for invoices
+  ReceiptText,
+  BarChart3, // Import BarChart3 icon for reports
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -113,6 +114,12 @@ const Sidebar: React.FC = () => {
               icon={ReceiptText}
               label="Invoices"
               isActive={location.pathname === '/invoices'}
+            />
+            <NavLink
+              to="/reports"
+              icon={BarChart3}
+              label="Reports"
+              isActive={location.pathname === '/reports'}
             />
             {userRole === 'administrator' && (
               <NavLink
