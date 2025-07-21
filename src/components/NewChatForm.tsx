@@ -83,6 +83,9 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
       return;
     }
 
+    // Log the access token to verify it's present
+    console.log('Supabase Access Token:', session.access_token);
+
     const currentUserId = session.user.id;
     const otherParticipantId = values.participant_id;
 
