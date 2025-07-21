@@ -19,6 +19,7 @@ import {
   Settings,
   Package,
   ShoppingCart,
+  BookOpen, // Import BookOpen icon for Wiki
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner'; // Dodato: Import LoadingSpinner
@@ -63,6 +64,7 @@ interface AppSettings {
   module_users_enabled: boolean;
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
+  module_wiki_enabled: boolean; // Add new field for Wiki module
 }
 
 const Sidebar: React.FC = () => {
@@ -192,6 +194,13 @@ const Sidebar: React.FC = () => {
               isActive={location.pathname === '/reports'}
               isVisible={appSettings?.module_reports_enabled || false}
             />
+            <NavLink
+              to="/wiki"
+              icon={BookOpen}
+              label="Wiki"
+              isActive={location.pathname === '/wiki'}
+              isVisible={appSettings?.module_wiki_enabled || false}
+            /> {/* New Wiki Module link */}
             {userRole === 'administrator' && (
               <NavLink
                 to="/users"
