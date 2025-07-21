@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input'; // Import Input for search
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
 import ProfileForm from '@/components/ProfileForm';
+import UserCreateForm from '@/components/UserCreateForm'; // Import the new UserCreateForm
 import { toast } from 'sonner';
-import { Edit, Search, Eye } from 'lucide-react'; // Import Eye icon
+import { Edit, Search, Eye, UserPlus } from 'lucide-react'; // Import UserPlus icon
 import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
@@ -24,7 +25,8 @@ const UserManagementPage: React.FC = () => {
   const navigate = useNavigate(); // Initialize useNavigate
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // Renamed for clarity
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false); // New state for create form
   const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(''); // New state for search term
@@ -89,7 +91,7 @@ const UserManagementPage: React.FC = () => {
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
-    setIsFormOpen(true);
+    setIsEditFormOpen(true);
   };
 
   const handleViewClientDetails = (clientId: string) => {
@@ -97,7 +99,8 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleFormSuccess = () => {
-    setIsFormOpen(false);
+    setIsEditFormOpen(false);
+    setIsCreateFormOpen(false);
     fetchProfiles();
   };
 
@@ -124,6 +127,19 @@ const UserManagementPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">User Management</h1>
+        <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="mr-2 h-4 w-4" /> Add New User
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+            </DialogHeader>
+            <UserCreateForm onSuccess={handleFormSuccess} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -181,7 +197,7 @@ const UserManagementPage: React.FC = () => {
         )}
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog open={isEditFormOpen} onOpenChange={setIsEditFormOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Profile</DialogTitle>
