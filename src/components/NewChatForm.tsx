@@ -66,6 +66,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
         .order('first_name', { ascending: true });
 
       if (error) {
+        console.error('Failed to load users for new chat form:', error.message);
         toast.error('Failed to load users: ' + error.message);
       } else {
         setUsers(data as Profile[]);
@@ -85,71 +86,85 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
     const currentUserId = session.user.id;
     const otherParticipantId = values.participant_id;
 
-    // Check if a private chat already exists between these two users
-    const { data: existingChats, error: existingChatError } = await supabase
-      .from('chat_participants')
-      .select('chat_id')
-      .in('user_id', [currentUserId, otherParticipantId])
-      .in('chat_id', supabase.from('chat_participants').select('chat_id').eq('user_id', currentUserId))
-      .in('chat_id', supabase.from('chat_participants').select('chat_id').eq('user_id', otherParticipantId));
+    console.log('Attempting to create chat with:', otherParticipantId);
 
-    if (existingChatError) {
-      toast.error('Error checking for existing chat: ' + existingChatError.message);
-      return;
+    try {
+      // Check if a private chat already exists between these two users
+      // Fetch chats where both currentUserId and otherParticipantId are participants.
+      const { data: potentialPrivateChats, error: potentialPrivateChatsError } = await supabase
+        .from('chat_participants')
+        .select('chat_id')
+        .eq('user_id', currentUserId)
+        .in('chat_id', supabase.from('chat_participants').select('chat_id').eq('user_id', otherParticipantId));
+
+      if (potentialPrivateChatsError) {
+        console.error('Error finding potential private chats:', potentialPrivateChatsError.message);
+        toast.error('Error finding potential private chats: ' + potentialPrivateChatsError.message);
+        return;
+      }
+
+      let existingPrivateChatId: string | null = null;
+      for (const chat of potentialPrivateChats) {
+        const { count: participantCount, error: countError } = await supabase
+          .from('chat_participants')
+          .select('*', { count: 'exact', head: true })
+          .eq('chat_id', chat.chat_id);
+
+        if (countError) {
+          console.error('Error counting participants for chat:', chat.chat_id, countError.message);
+          continue;
+        }
+
+        if (participantCount === 2) {
+          existingPrivateChatId = chat.chat_id;
+          break;
+        }
+      }
+
+      if (existingPrivateChatId) {
+        toast.info('A private chat with this user already exists.');
+        onSuccess?.(existingPrivateChatId); // Select existing chat
+        return;
+      }
+
+      // Create new chat
+      const { data: newChatData, error: chatError } = await supabase
+        .from('chats')
+        .insert({ type: 'private', name: null }) // Private chats don't need a name initially
+        .select('id')
+        .single();
+
+      if (chatError) {
+        console.error('Failed to create chat:', chatError.message);
+        toast.error('Failed to create chat: ' + chatError.message);
+        return;
+      }
+
+      const newChatId = newChatData.id;
+      console.log('New chat created with ID:', newChatId);
+
+      // Add participants to the new chat
+      const { error: participantsError } = await supabase
+        .from('chat_participants')
+        .insert([
+          { chat_id: newChatId, user_id: currentUserId },
+          { chat_id: newChatId, user_id: otherParticipantId },
+        ]);
+
+      if (participantsError) {
+        console.error('Failed to add participants to chat:', participantsError.message);
+        toast.error('Failed to add participants to chat: ' + participantsError.message);
+        // Consider rolling back chat creation here if this is critical
+        return;
+      }
+
+      toast.success('New private chat created successfully!');
+      form.reset();
+      onSuccess?.(newChatId);
+    } catch (e: any) {
+      console.error('Unexpected error during chat creation:', e.message);
+      toast.error('An unexpected error occurred: ' + e.message);
     }
-
-    // Filter for chats that have exactly two participants (private chats)
-    const privateChatIds = existingChats.map(c => c.chat_id);
-    const { data: chatCounts, error: chatCountsError } = await supabase
-      .from('chat_participants')
-      .select('chat_id', { count: 'exact' })
-      .in('chat_id', privateChatIds)
-      .not('user_id', 'in', [currentUserId, otherParticipantId]); // Ensure no other participants
-
-    if (chatCountsError) {
-      toast.error('Error checking chat participant count: ' + chatCountsError.message);
-      return;
-    }
-
-    const existingPrivateChat = chatCounts.find(c => c.count === 2); // Check for exactly 2 participants
-
-    if (existingPrivateChat) {
-      toast.info('A private chat with this user already exists.');
-      onSuccess?.(existingPrivateChat.chat_id); // Select existing chat
-      return;
-    }
-
-    // Create new chat
-    const { data: newChatData, error: chatError } = await supabase
-      .from('chats')
-      .insert({ type: 'private', name: null }) // Private chats don't need a name initially
-      .select('id')
-      .single();
-
-    if (chatError) {
-      toast.error('Failed to create chat: ' + chatError.message);
-      return;
-    }
-
-    const newChatId = newChatData.id;
-
-    // Add participants to the new chat
-    const { error: participantsError } = await supabase
-      .from('chat_participants')
-      .insert([
-        { chat_id: newChatId, user_id: currentUserId },
-        { chat_id: newChatId, user_id: otherParticipantId },
-      ]);
-
-    if (participantsError) {
-      toast.error('Failed to add participants to chat: ' + participantsError.message);
-      // Consider rolling back chat creation here if this is critical
-      return;
-    }
-
-    toast.success('New private chat created successfully!');
-    form.reset();
-    onSuccess?.(newChatId);
   };
 
   if (loadingUsers) {
