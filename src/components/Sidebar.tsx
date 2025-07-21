@@ -104,7 +104,7 @@ const Sidebar: React.FC = () => {
           console.error('Error fetching user role:', roleError.message);
           toast.error('Failed to fetch user role.');
         } else {
-          setUserRole(data.role);
+          setUserRole(roleData.role);
         }
       }
       setLoadingSettings(false);
