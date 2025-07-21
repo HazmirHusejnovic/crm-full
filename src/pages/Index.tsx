@@ -1,7 +1,7 @@
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/contexts/SessionContext";
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -33,9 +33,15 @@ const Index = () => {
       </div>
       <div className="text-center">
         <h1 className="text-4xl font-bold mb-4">Welcome to BizHub CRM, {session.user?.email}!</h1>
-        <p className="text-xl text-gray-600 dark:text-gray-400">
+        <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
           Your CRM dashboard will be built here.
         </p>
+        <div className="flex flex-col space-y-4">
+          <Link to="/tasks">
+            <Button className="w-48">Go to Tasks</Button>
+          </Link>
+          {/* Add more navigation links here as modules are built */}
+        </div>
       </div>
       <MadeWithDyad />
     </div>
