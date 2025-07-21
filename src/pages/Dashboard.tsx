@@ -3,7 +3,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
-import TaskStatusChart from '@/components/TaskStatusChart'; // Import the new chart component
+import TaskStatusChart from '@/components/TaskStatusChart';
 
 interface DashboardStats {
   openTasks: number;
@@ -70,25 +70,33 @@ const DashboardPage: React.FC = () => {
         hasError = true;
       }
 
-      // Fetch task counts by status for the chart
-      const { data: taskCounts, error: taskCountsError } = await supabase
+      // Fetch all tasks to count by status for the chart
+      const { data: allTasks, error: allTasksError } = await supabase
         .from('tasks')
-        .select('status, count')
-        .rollup('count')
-        .order('status');
+        .select('status');
 
-      if (taskCountsError) {
-        toast.error('Failed to load task status counts: ' + taskCountsError.message);
+      if (allTasksError) {
+        toast.error('Failed to load all tasks for status counts: ' + allTasksError.message);
         hasError = true;
       } else {
-        const statusMap = new Map<string, number>();
-        taskCounts.forEach((item: any) => statusMap.set(item.status, item.count));
+        const statusCounts: { [key: string]: number } = {
+          pending: 0,
+          in_progress: 0,
+          completed: 0,
+          cancelled: 0,
+        };
+
+        allTasks.forEach((task: { status: string }) => {
+          if (statusCounts.hasOwnProperty(task.status)) {
+            statusCounts[task.status]++;
+          }
+        });
 
         const chartData: TaskStatusData[] = [
-          { name: 'Pending', count: statusMap.get('pending') || 0, fill: 'hsl(var(--yellow-600))' },
-          { name: 'In Progress', count: statusMap.get('in_progress') || 0, fill: 'hsl(var(--blue-600))' },
-          { name: 'Completed', count: statusMap.get('completed') || 0, fill: 'hsl(var(--green-600))' },
-          { name: 'Cancelled', count: statusMap.get('cancelled') || 0, fill: 'hsl(var(--red-600))' },
+          { name: 'Pending', count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
+          { name: 'In Progress', count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
+          { name: 'Completed', count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
+          { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
       }
