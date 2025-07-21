@@ -5,8 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { Search, ShoppingCart, XCircle, Receipt } from 'lucide-react'; // Import Receipt icon for fiscalization
+import { Search, ShoppingCart, XCircle, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'; // Import Select components
 
 interface Product {
   id: string;
@@ -22,6 +29,13 @@ interface CartItem extends Product {
   quantity: number;
 }
 
+interface ClientProfile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+}
+
 const POSPage: React.FC = () => {
   const { supabase, session } = useSession();
   const navigate = useNavigate();
@@ -29,6 +43,8 @@ const POSPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [clients, setClients] = useState<ClientProfile[]>([]); // New state for clients
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null); // New state for selected client
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -60,7 +76,27 @@ const POSPage: React.FC = () => {
       setLoading(false);
     };
 
+    const fetchClients = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, users(email)')
+        .eq('role', 'client');
+
+      if (error) {
+        toast.error('Failed to load clients: ' + error.message);
+      } else {
+        const clientsWithEmails = data.map((profile: any) => ({
+          id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          email: profile.users?.email || 'N/A',
+        }));
+        setClients(clientsWithEmails);
+      }
+    };
+
     fetchProducts();
+    fetchClients();
   }, [supabase, searchTerm]);
 
   const addToCart = (product: Product) => {
@@ -137,7 +173,7 @@ const POSPage: React.FC = () => {
         .from('invoices')
         .insert({
           invoice_number: invoiceNumber,
-          client_id: null, // For POS, client might be null (walk-in)
+          client_id: selectedClientId, // Use selected client ID
           issue_date: issueDate,
           due_date: dueDate,
           total_amount: totalAmount,
@@ -194,6 +230,7 @@ const POSPage: React.FC = () => {
 
       toast.success('Sale processed successfully!', { id: loadingToastId });
       setCart([]); // Clear cart
+      setSelectedClientId(null); // Clear selected client
       // Optionally navigate to the new invoice or a confirmation page
       navigate(`/invoices/print/${invoiceId}`); // Navigate to printable invoice
     } catch (error: any) {
@@ -271,6 +308,23 @@ const POSPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mb-4">
+              <label htmlFor="client-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Client (Optional)</label>
+              <Select onValueChange={(value) => setSelectedClientId(value === 'null-value' ? null : value)} value={selectedClientId || 'null-value'}>
+                <SelectTrigger id="client-select">
+                  <SelectValue placeholder="Walk-in Customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="null-value">Walk-in Customer</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.first_name} {client.last_name} ({client.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {cart.length === 0 ? (
               <p className="text-center text-gray-500">Your cart is empty.</p>
             ) : (
