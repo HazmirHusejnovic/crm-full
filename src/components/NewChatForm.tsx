@@ -83,36 +83,42 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    // Log the access token to verify it's present
-    console.log('Supabase Access Token:', session.access_token);
-
     const currentUserId = session.user.id;
     const otherParticipantId = values.participant_id;
 
     console.log('Attempting to create chat with:', otherParticipantId);
+    console.log('Current User ID:', currentUserId);
+    console.log('Current Session Access Token (first 10 chars):', session.access_token ? session.access_token.substring(0, 10) + '...' : 'N/A');
+
 
     try {
       // 1. Fetch chat IDs for the current user
+      console.log('Fetching current user chat participants...');
       const { data: currentUserChatParticipants, error: currentUserChatsError } = await supabase
         .from('chat_participants')
         .select('chat_id')
         .eq('user_id', currentUserId);
 
       if (currentUserChatsError) {
+        console.error('Error fetching current user chat memberships:', currentUserChatsError.message);
         throw new Error('Error fetching current user chat memberships: ' + currentUserChatsError.message);
       }
       const currentUserChatIds = currentUserChatParticipants.map(p => p.chat_id);
+      console.log('Current user chat IDs:', currentUserChatIds);
 
       // 2. Fetch chat IDs for the other participant
+      console.log('Fetching other user chat participants...');
       const { data: otherUserChatParticipants, error: otherUserChatsError } = await supabase
         .from('chat_participants')
         .select('chat_id')
         .eq('user_id', otherParticipantId);
 
       if (otherUserChatsError) {
+        console.error('Error fetching other user chat memberships:', otherUserChatsError.message);
         throw new Error('Error fetching other user chat memberships: ' + otherUserChatsError.message);
       }
       const otherUserChatIds = otherUserChatParticipants.map(p => p.chat_id);
+      console.log('Other user chat IDs:', otherUserChatIds);
 
       // 3. Find common chat IDs (potential private chats)
       const commonChatIds = currentUserChatIds.filter(chatId => otherUserChatIds.includes(chatId));
@@ -121,6 +127,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
 
       if (commonChatIds.length > 0) {
         // 4. For each common chat ID, check if it's a 'private' chat with exactly two participants
+        console.log('Checking common chats for existing private chat...');
         const { data: chatsDetails, error: chatsDetailsError } = await supabase
           .from('chats')
           .select(`
@@ -132,6 +139,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
           .eq('type', 'private'); // Only consider private chats
 
         if (chatsDetailsError) {
+          console.error('Error fetching chat details for common IDs:', chatsDetailsError.message);
           throw new Error('Error fetching chat details for common IDs: ' + chatsDetailsError.message);
         }
 
@@ -142,6 +150,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
 
         if (foundChat) {
           existingPrivateChatId = foundChat.id;
+          console.log('Found existing private chat:', existingPrivateChatId);
         }
       }
 
@@ -152,6 +161,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
       }
 
       // If no existing private chat, create a new one
+      console.log('No existing private chat found. Creating new one...');
       const { data: newChatData, error: chatError } = await supabase
         .from('chats')
         .insert({ type: 'private', name: null }) // Private chats don't need a name initially
@@ -168,6 +178,7 @@ const NewChatForm: React.FC<NewChatFormProps> = ({ onSuccess }) => {
       console.log('New chat created with ID:', newChatId);
 
       // Add participants to the new chat
+      console.log('Adding participants to new chat...');
       const { error: participantsError } = await supabase
         .from('chat_participants')
         .insert([
