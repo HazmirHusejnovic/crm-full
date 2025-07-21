@@ -44,8 +44,6 @@ const UserManagementPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      // For search, we'll need to fetch emails first or search only on name fields
-      // For now, search only on first_name and last_name for simplicity
       query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
     }
 
@@ -53,7 +51,8 @@ const UserManagementPage: React.FC = () => {
       query = query.eq('role', filterRole);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    // Changed ordering to 'first_name' as 'created_at' does not exist in profiles table
+    const { data, error } = await query.order('first_name', { ascending: true });
 
     if (error) {
       toast.error('Failed to load profiles: ' + error.message);
@@ -61,10 +60,9 @@ const UserManagementPage: React.FC = () => {
       return;
     }
 
-    // Fetch emails separately for each profile
     const profilesWithEmails = await Promise.all(data.map(async (profile: any) => {
       const { data: userData, error: userError } = await supabase
-        .from('profiles') // Querying profiles again to get the joined auth.users email
+        .from('profiles')
         .select('users(email)')
         .eq('id', profile.id)
         .single();
