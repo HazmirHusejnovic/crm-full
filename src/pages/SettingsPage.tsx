@@ -13,6 +13,8 @@ interface AppSettings {
   company_address: string | null;
   company_email: string | null;
   company_phone: string | null;
+  company_logo_url: string | null; // New field
+  bank_account_details: string | null; // New field
   default_vat_rate: number;
 }
 
