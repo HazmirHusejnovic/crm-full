@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'; // Import Input for search
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
-import { Edit, Search } from 'lucide-react'; // Import Search icon
+import { Edit, Search, Eye } from 'lucide-react'; // Import Eye icon
 import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 interface Profile {
   id: string;
@@ -20,6 +21,7 @@ interface Profile {
 
 const UserManagementPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const navigate = useNavigate(); // Initialize useNavigate
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -90,6 +92,10 @@ const UserManagementPage: React.FC = () => {
     setIsFormOpen(true);
   };
 
+  const handleViewClientDetails = (clientId: string) => {
+    navigate(`/clients/${clientId}`);
+  };
+
   const handleFormSuccess = () => {
     setIsFormOpen(false);
     fetchProfiles();
@@ -153,6 +159,11 @@ const UserManagementPage: React.FC = () => {
                 <CardTitle className="flex justify-between items-center">
                   {profile.first_name} {profile.last_name}
                   <div className="flex space-x-2">
+                    {profile.role === 'client' && (
+                      <Button variant="ghost" size="icon" onClick={() => handleViewClientDetails(profile.id)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => handleEditProfileClick(profile)}>
                       <Edit className="h-4 w-4" />
                     </Button>
