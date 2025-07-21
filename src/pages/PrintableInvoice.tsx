@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } => 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
@@ -98,8 +98,8 @@ const PrintableInvoice: React.FC = () => {
         let clientProfile: ClientProfileDetails | null = null;
         if (data.client_id) {
           const { data: clientData, error: clientError } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, users(email)') // Changed to users(email)
+            .from('profiles_with_auth_emails') // Use the new view
+            .select('id, first_name, last_name, email') // Select email directly
             .eq('id', data.client_id)
             .single();
           if (clientError) {
@@ -110,7 +110,7 @@ const PrintableInvoice: React.FC = () => {
               id: clientData.id,
               first_name: clientData.first_name,
               last_name: clientData.last_name,
-              email: clientData.users?.email || 'N/A', // Access email from users alias
+              email: clientData.email || 'N/A', // Access email directly
             };
           }
         }

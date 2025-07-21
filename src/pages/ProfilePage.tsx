@@ -27,14 +27,14 @@ const ProfilePage: React.FC = () => {
 
       setLoading(true);
       const { data, error } = await supabase
-        .from('profiles')
+        .from('profiles_with_auth_emails') // Use the new view
         .select(`
           id,
           first_name,
           last_name,
           role,
-          auth_users:auth.users(email)
-        `)
+          email
+        `) // Select email directly
         .eq('id', session.user.id)
         .single();
 
@@ -46,7 +46,7 @@ const ProfilePage: React.FC = () => {
           first_name: data.first_name,
           last_name: data.last_name,
           role: data.role,
-          email: data.auth_users?.email || 'N/A',
+          email: data.email || 'N/A', // Access email directly
         });
       }
       setLoading(false);
@@ -60,14 +60,14 @@ const ProfilePage: React.FC = () => {
     if (session?.user?.id) {
       setLoading(true);
       supabase
-        .from('profiles')
+        .from('profiles_with_auth_emails') // Use the new view
         .select(`
           id,
           first_name,
           last_name,
           role,
-          auth_users:auth.users(email)
-        `)
+          email
+        `) // Select email directly
         .eq('id', session.user.id)
         .single()
         .then(({ data, error }) => {
@@ -79,7 +79,7 @@ const ProfilePage: React.FC = () => {
               first_name: data.first_name,
               last_name: data.last_name,
               role: data.role,
-              email: data.auth_users?.email || 'N/A',
+              email: data.email || 'N/A', // Access email directly
             });
           }
           setLoading(false);

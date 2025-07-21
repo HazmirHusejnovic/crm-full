@@ -104,8 +104,8 @@ const InvoicesPage: React.FC = () => {
       let clientProfile: ClientProfileDetails | null = null;
       if (invoice.client_id) {
         const { data: clientData, error: clientError } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name, users(email)') // Changed to users(email)
+          .from('profiles_with_auth_emails') // Use the new view
+          .select('id, first_name, last_name, email') // Select email directly
           .eq('id', invoice.client_id)
           .single();
         if (clientError) {
@@ -116,7 +116,7 @@ const InvoicesPage: React.FC = () => {
             id: clientData.id,
             first_name: clientData.first_name,
             last_name: clientData.last_name,
-            email: clientData.users?.email || 'N/A', // Access email from users alias
+            email: clientData.email || 'N/A', // Access email directly
           };
         }
       }

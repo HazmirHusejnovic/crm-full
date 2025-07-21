@@ -107,14 +107,14 @@ const ClientDetailsPage: React.FC = () => {
 
     // Fetch client profile
     const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
+      .from('profiles_with_auth_emails') // Use the new view
       .select(`
           id,
           first_name,
           last_name,
           role,
-          users(email)
-        `) // Changed to users(email)
+          email
+        `) // Select email directly
       .eq('id', id)
       .single();
 
@@ -127,7 +127,7 @@ const ClientDetailsPage: React.FC = () => {
         first_name: profileData.first_name,
         last_name: profileData.last_name,
         role: profileData.role,
-        email: profileData.users?.email || 'N/A', // Access email from users alias
+        email: profileData.email || 'N/A', // Access email directly
       });
     }
 

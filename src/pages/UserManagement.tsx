@@ -35,14 +35,14 @@ const UserManagementPage: React.FC = () => {
   const fetchProfiles = async () => {
     setLoading(true);
     let query = supabase
-      .from('profiles')
+      .from('profiles_with_auth_emails') // Use the new view
       .select(`
         id,
         first_name,
         last_name,
         role,
-        users(email)
-      `); // Changed to users(email)
+        email
+      `); // Select email directly
 
     if (searchTerm) {
       query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
@@ -61,15 +61,7 @@ const UserManagementPage: React.FC = () => {
       return;
     }
 
-    const profilesWithEmails = data.map((profile: any) => ({
-      id: profile.id,
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      role: profile.role,
-      email: profile.users?.email || 'N/A', // Access email from users alias
-    }));
-
-    setProfiles(profilesWithEmails as Profile[]);
+    setProfiles(data as Profile[]);
     setLoading(false);
   };
 

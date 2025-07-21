@@ -81,20 +81,14 @@ const POSPage: React.FC = () => {
 
     const fetchClients = async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, users(email)') // Changed to users(email)
+        .from('profiles_with_auth_emails') // Use the new view
+        .select('id, first_name, last_name, email') // Select email directly
         .eq('role', 'client');
 
       if (error) {
         toast.error('Failed to load clients: ' + error.message);
       } else {
-        const clientsWithEmails = data.map((profile: any) => ({
-          id: profile.id,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          email: profile.users?.email || 'N/A', // Access email from users alias
-        }));
-        setClients(clientsWithEmails);
+        setClients(data as ClientProfile[]);
       }
     };
 
