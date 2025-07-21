@@ -8,6 +8,7 @@ import ServiceCategoryForm from '@/components/ServiceCategoryForm';
 import ServiceForm from '@/components/ServiceForm';
 import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { format } from 'date-fns'; // Added this import
 
 interface ServiceCategory {
   id: string;
