@@ -68,7 +68,8 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
 
       const result = await response.json();
 
-      if (!response.ok) {
+      // Check for non-OK response status OR an error message in the result payload
+      if (!response.ok || result.error) {
         throw new Error(result.error || 'Failed to create user.');
       }
 

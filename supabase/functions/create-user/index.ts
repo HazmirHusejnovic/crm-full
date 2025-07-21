@@ -55,13 +55,13 @@ serve(async (req) => {
 
     if (profileUpdateError) {
       console.error('Error updating profile role:', profileUpdateError.message);
+      // Return a non-200 status to indicate an error to the client
       return new Response(JSON.stringify({
-        message: 'User created, but profile role update failed.',
+        error: 'User created, but profile role update failed: ' + profileUpdateError.message,
         user: userData.user,
-        profileError: profileUpdateError.message
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 500, // Internal Server Error for database update failure
       });
     }
 
