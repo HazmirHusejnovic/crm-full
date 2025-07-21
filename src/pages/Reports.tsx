@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import TaskStatusChart from '@/components/TaskStatusChart';
-import TicketStatusChart from '@/components/TicketStatusChart'; // Import the new TicketStatusChart
+import TicketStatusChart from '@/components/TicketStatusChart';
+import InvoiceStatusChart from '@/components/InvoiceStatusChart'; // Import the new InvoiceStatusChart
 
 interface TaskStatusData {
   name: string;
@@ -18,11 +19,18 @@ interface TicketStatusData {
   fill: string;
 }
 
+interface InvoiceStatusData {
+  name: string;
+  count: number;
+  fill: string;
+}
+
 const ReportsPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [loading, setLoading] = useState(true);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
+  const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]); // New state for invoice data
 
   useEffect(() => {
     if (!session) {
@@ -98,6 +106,39 @@ const ReportsPage: React.FC = () => {
         setTicketStatusData(ticketChartData);
       }
 
+      // Fetch all invoices to count by status for the chart
+      const { data: allInvoices, error: allInvoicesError } = await supabase
+        .from('invoices')
+        .select('status');
+
+      if (allInvoicesError) {
+        toast.error('Failed to load invoices for status counts: ' + allInvoicesError.message);
+        hasError = true;
+      } else {
+        const invoiceStatusCounts: { [key: string]: number } = {
+          draft: 0,
+          sent: 0,
+          paid: 0,
+          overdue: 0,
+          cancelled: 0,
+        };
+
+        allInvoices.forEach((invoice: { status: string }) => {
+          if (invoiceStatusCounts.hasOwnProperty(invoice.status)) {
+            invoiceStatusCounts[invoice.status]++;
+          }
+        });
+
+        const invoiceChartData: InvoiceStatusData[] = [
+          { name: 'Draft', count: invoiceStatusCounts.draft, fill: 'hsl(var(--yellow-600))' },
+          { name: 'Sent', count: invoiceStatusCounts.sent, fill: 'hsl(var(--blue-600))' },
+          { name: 'Paid', count: invoiceStatusCounts.paid, fill: 'hsl(var(--green-600))' },
+          { name: 'Overdue', count: invoiceStatusCounts.overdue, fill: 'hsl(var(--red-600))' },
+          { name: 'Cancelled', count: invoiceStatusCounts.cancelled, fill: 'hsl(var(--gray-500))' },
+        ];
+        setInvoiceStatusData(invoiceChartData);
+      }
+
       setLoading(false);
     };
 
@@ -119,6 +160,7 @@ const ReportsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TaskStatusChart data={taskStatusData} />
         <TicketStatusChart data={ticketStatusData} />
+        <InvoiceStatusChart data={invoiceStatusData} /> {/* New Invoice Status Chart */}
         {/* Add more charts or reports here as needed */}
       </div>
     </div>
