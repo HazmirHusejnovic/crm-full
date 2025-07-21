@@ -21,6 +21,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import LoadingSpinner from '@/components/LoadingSpinner'; // Dodato: Import LoadingSpinner
 
 interface NavLinkProps {
   to: string;
