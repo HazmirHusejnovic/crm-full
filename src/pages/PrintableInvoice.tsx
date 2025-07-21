@@ -99,7 +99,7 @@ const PrintableInvoice: React.FC = () => {
         if (data.client_id) {
           const { data: clientData, error: clientError } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name, auth_users:auth.users(email)') // Corrected join syntax
+            .select('id, first_name, last_name, users(email)') // Changed to users(email)
             .eq('id', data.client_id)
             .single();
           if (clientError) {
@@ -110,7 +110,7 @@ const PrintableInvoice: React.FC = () => {
               id: clientData.id,
               first_name: clientData.first_name,
               last_name: clientData.last_name,
-              email: clientData.auth_users?.email || 'N/A', // Access email from auth_users alias
+              email: clientData.users?.email || 'N/A', // Access email from users alias
             };
           }
         }

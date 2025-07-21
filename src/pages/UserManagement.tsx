@@ -41,8 +41,8 @@ const UserManagementPage: React.FC = () => {
         first_name,
         last_name,
         role,
-        auth_users:auth.users(email)
-      `);
+        users(email)
+      `); // Changed to users(email)
 
     if (searchTerm) {
       query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
@@ -66,7 +66,7 @@ const UserManagementPage: React.FC = () => {
       first_name: profile.first_name,
       last_name: profile.last_name,
       role: profile.role,
-      email: profile.auth_users?.email || 'N/A', // Access email from auth_users alias
+      email: profile.users?.email || 'N/A', // Access email from users alias
     }));
 
     setProfiles(profilesWithEmails as Profile[]);

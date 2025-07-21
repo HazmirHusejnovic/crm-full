@@ -113,8 +113,8 @@ const ClientDetailsPage: React.FC = () => {
           first_name,
           last_name,
           role,
-          auth_users:auth.users(email)
-        `)
+          users(email)
+        `) // Changed to users(email)
       .eq('id', id)
       .single();
 
@@ -127,7 +127,7 @@ const ClientDetailsPage: React.FC = () => {
         first_name: profileData.first_name,
         last_name: profileData.last_name,
         role: profileData.role,
-        email: profileData.auth_users?.email || 'N/A', // Access email from auth_users alias
+        email: profileData.users?.email || 'N/A', // Access email from users alias
       });
     }
 

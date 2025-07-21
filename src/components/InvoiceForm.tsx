@@ -73,7 +73,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
     const fetchClients = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, auth_users:auth.users(email)') // Corrected join syntax
+        .select('id, first_name, last_name, users(email)') // Changed to users(email)
         .eq('role', 'client');
 
       if (error) {
@@ -83,7 +83,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
           id: profile.id,
           first_name: profile.first_name,
           last_name: profile.last_name,
-          email: profile.auth_users?.email || 'N/A', // Access email from auth_users alias
+          email: profile.users?.email || 'N/A', // Access email from users alias
         }));
         setClients(clientsWithEmails as Profile[]);
       }
