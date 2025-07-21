@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox'; // Import Checkbox
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionContext';
 
@@ -28,6 +29,7 @@ const userCreateFormSchema = z.object({
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
   role: z.enum(['client', 'worker', 'administrator'], { message: 'Role is required.' }),
+  skip_email_verification: z.boolean().optional().default(false), // New field
 });
 
 type UserCreateFormValues = z.infer<typeof userCreateFormSchema>;
@@ -47,6 +49,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
       first_name: '',
       last_name: '',
       role: 'client', // Default role
+      skip_email_verification: false, // Default to false
     },
   });
 
@@ -155,6 +158,26 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
                 </SelectContent>
               </Select>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="skip_email_verification"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>
+                  Skip Email Verification
+                </FormLabel>
+                <FormMessage />
+              </div>
             </FormItem>
           )}
         />

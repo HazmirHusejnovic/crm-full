@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { email, password, first_name, last_name, role } = await req.json();
+    const { email, password, first_name, last_name, role, skip_email_verification } = await req.json();
 
     if (!email || !password || !role) {
       return new Response(JSON.stringify({ error: 'Email, password, and role are required.' }), {
@@ -31,7 +31,7 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Automatically confirm email
+      email_confirm: !skip_email_verification, // Conditionally confirm email
       user_metadata: { first_name, last_name }, // Pass first/last name to user_metadata
     });
 
