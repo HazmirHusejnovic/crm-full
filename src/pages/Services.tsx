@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input'; // Import Input for search
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
 import ServiceCategoryForm from '@/components/ServiceCategoryForm';
 import ServiceForm from '@/components/ServiceForm';
 import { toast } from 'sonner';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-import { format } from 'date-fns'; // Added this import
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
+import { format } from 'date-fns';
 
 interface ServiceCategory {
   id: string;
@@ -39,6 +41,8 @@ const ServicesPage: React.FC = () => {
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | undefined>(undefined);
   const [editingService, setEditingService] = useState<Service | undefined>(undefined);
+  const [searchTerm, setSearchTerm] = useState(''); // New state for service search term
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('all'); // New state for service category filter
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
@@ -57,7 +61,7 @@ const ServicesPage: React.FC = () => {
 
   const fetchServices = async () => {
     setLoadingServices(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('services')
       .select(`
         id,
@@ -69,8 +73,17 @@ const ServicesPage: React.FC = () => {
         vat_rate,
         created_at,
         service_categories(name)
-      `)
-      .order('name', { ascending: true });
+      `);
+
+    if (searchTerm) {
+      query = query.ilike('name', `%${searchTerm}%`); // Apply search filter
+    }
+
+    if (filterCategoryId !== 'all') {
+      query = query.eq('category_id', filterCategoryId); // Apply category filter
+    }
+
+    const { data, error } = await query.order('name', { ascending: true });
 
     if (error) {
       toast.error('Failed to load services: ' + error.message);
@@ -82,8 +95,11 @@ const ServicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchCategories();
-    fetchServices();
   }, [supabase]);
+
+  useEffect(() => {
+    fetchServices();
+  }, [supabase, searchTerm, filterCategoryId]); // Re-fetch services when search term or filter changes
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -178,6 +194,31 @@ const ServicesPage: React.FC = () => {
                 <ServiceForm initialData={editingService} onSuccess={handleServiceFormSuccess} />
               </DialogContent>
             </Dialog>
+          </div>
+
+          <div className="mb-6 flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search services by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select onValueChange={setFilterCategoryId} defaultValue={filterCategoryId}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
