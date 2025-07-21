@@ -35,6 +35,21 @@ interface ClientProfile {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  default_currency_id: string | null;
+}
+
+interface Currency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  is_default: boolean;
+}
+
+interface ExchangeRate {
+  from_currency_id: string;
+  to_currency_id: string;
+  rate: number;
 }
 
 const POSPage: React.FC = () => {
@@ -47,11 +62,59 @@ const POSPage: React.FC = () => {
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
+  const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      let query = supabase
+      let hasError = false;
+
+      // Fetch app settings for default currency
+      const { data: appSettings, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('default_currency_id')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Failed to load app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+        hasError = true;
+      } else {
+        setAppDefaultCurrencyId(appSettings?.default_currency_id || null);
+        if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
+          setSelectedCurrencyId(appSettings?.default_currency_id || null);
+        }
+      }
+
+      // Fetch currencies
+      const { data: currenciesData, error: currenciesError } = await supabase
+        .from('currencies')
+        .select('*')
+        .order('code', { ascending: true });
+      if (currenciesError) {
+        toast.error('Failed to load currencies: ' + currenciesError.message);
+        hasError = true;
+      } else {
+        setCurrencies(currenciesData);
+      }
+
+      // Fetch exchange rates
+      const { data: ratesData, error: ratesError } = await supabase
+        .from('exchange_rates')
+        .select('*');
+      if (ratesError) {
+        toast.error('Failed to load exchange rates: ' + ratesError.message);
+        hasError = true;
+      } else {
+        setExchangeRates(ratesData);
+      }
+
+      // Fetch products
+      let productQuery = supabase
         .from('products')
         .select(`
           id,
@@ -66,35 +129,76 @@ const POSPage: React.FC = () => {
         .order('name', { ascending: true });
 
       if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
+        productQuery = productQuery.or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
       }
 
-      const { data, error } = await query;
+      const { data: productsData, error: productsError } = await productQuery;
 
-      if (error) {
-        toast.error('Failed to load products: ' + error.message);
+      if (productsError) {
+        toast.error('Failed to load products: ' + productsError.message);
+        hasError = true;
       } else {
-        setProducts(data as Product[]);
+        setProducts(productsData as Product[]);
       }
+
+      // Fetch clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('profiles_with_auth_emails')
+        .select('id, first_name, last_name, email, default_currency_id')
+        .eq('role', 'client');
+
+      if (clientsError) {
+        toast.error('Failed to load clients: ' + clientsError.message);
+        hasError = true;
+      } else {
+        setClients(clientsData as ClientProfile[]);
+      }
+
       setLoading(false);
     };
 
-    const fetchClients = async () => {
-      const { data, error } = await supabase
-        .from('profiles_with_auth_emails') // Use the new view
-        .select('id, first_name, last_name, email') // Select email directly
-        .eq('role', 'client');
+    fetchData();
+  }, [supabase, searchTerm, selectedCurrencyId]); // Re-fetch if selectedCurrencyId changes
 
-      if (error) {
-        toast.error('Failed to load clients: ' + error.message);
+  // Update selected currency when client changes
+  useEffect(() => {
+    if (selectedClientId) {
+      const client = clients.find(c => c.id === selectedClientId);
+      if (client?.default_currency_id) {
+        setSelectedCurrencyId(client.default_currency_id);
       } else {
-        setClients(data as ClientProfile[]);
+        setSelectedCurrencyId(appDefaultCurrencyId); // Fallback to app default
       }
-    };
+    } else {
+      setSelectedCurrencyId(appDefaultCurrencyId); // Reset to app default if no client selected
+    }
+  }, [selectedClientId, clients, appDefaultCurrencyId]);
 
-    fetchProducts();
-    fetchClients();
-  }, [supabase, searchTerm]);
+  const getExchangeRate = (fromCurrencyId: string, toCurrencyId: string): number => {
+    if (fromCurrencyId === toCurrencyId) return 1;
+    const rate = exchangeRates.find(
+      (r) => r.from_currency_id === fromCurrencyId && r.to_currency_id === toCurrencyId
+    );
+    return rate ? rate.rate : 0; // Return 0 if no direct rate found, handle error appropriately
+  };
+
+  const convertPrice = (price: number, productCurrencyId: string, targetCurrencyId: string): number => {
+    if (!productCurrencyId || !targetCurrencyId || productCurrencyId === targetCurrencyId) {
+      return price;
+    }
+
+    const rate = getExchangeRate(productCurrencyId, targetCurrencyId);
+    if (rate === 0) {
+      toast.warning(`No exchange rate found from product's currency to selected currency. Using original price.`);
+      return price; // Fallback to original price if no rate
+    }
+    return price * rate;
+  };
+
+  const getCurrencySymbol = (currencyId: string | null): string => {
+    const currency = currencies.find(c => c.id === currencyId);
+    return currency ? currency.symbol : '$'; // Default to $ if not found
+  };
 
   const addToCart = (product: Product) => {
     setCart((prevCart) => {
@@ -137,8 +241,9 @@ const POSPage: React.FC = () => {
   };
 
   const calculateItemTotal = (item: CartItem) => {
-    // Calculate total including VAT
-    return item.price * item.quantity * (1 + item.vat_rate);
+    // Assuming product.price is in the app's default currency
+    const convertedPrice = convertPrice(item.price, appDefaultCurrencyId || '', selectedCurrencyId || '');
+    return convertedPrice * item.quantity * (1 + item.vat_rate);
   };
 
   const calculateTotal = () => {
@@ -153,6 +258,11 @@ const POSPage: React.FC = () => {
 
     if (cart.length === 0) {
       toast.error('Cart is empty. Add products to proceed.');
+      return;
+    }
+
+    if (!selectedCurrencyId) {
+      toast.error('Please select a currency for the sale.');
       return;
     }
 
@@ -175,6 +285,7 @@ const POSPage: React.FC = () => {
           total_amount: totalAmount,
           status: 'paid', // Mark as paid for immediate POS sale
           created_by: session.user.id,
+          currency_id: selectedCurrencyId, // Save the selected currency with the invoice
         })
         .select('id')
         .single();
@@ -191,7 +302,7 @@ const POSPage: React.FC = () => {
         service_id: null, // Products are not services
         description: item.name,
         quantity: item.quantity,
-        unit_price: item.price,
+        unit_price: convertPrice(item.price, appDefaultCurrencyId || '', selectedCurrencyId || ''), // Store unit price in invoice currency
         vat_rate: item.vat_rate, // Use product's VAT rate
         total: calculateItemTotal(item),
       }));
@@ -253,6 +364,8 @@ const POSPage: React.FC = () => {
     );
   }
 
+  const currentCurrencySymbol = getCurrencySymbol(selectedCurrencyId);
+
   return (
     <div className="container mx-auto p-4 flex flex-col lg:flex-row gap-6">
       <div className="flex-1">
@@ -284,7 +397,7 @@ const POSPage: React.FC = () => {
                 <CardContent className="flex-grow">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{product.description}</p>
                   <div className="text-xs text-gray-500 dark:text-gray-300">
-                    <p>Price: <span className="font-medium">${product.price.toFixed(2)}</span></p>
+                    <p>Price: <span className="font-medium">{currentCurrencySymbol}{convertPrice(product.price, appDefaultCurrencyId || '', selectedCurrencyId || '').toFixed(2)}</span></p>
                     <p>Stock: <span className={`font-medium ${product.stock_quantity <= 5 && product.stock_quantity > 0 ? 'text-orange-500' : product.stock_quantity === 0 ? 'text-red-500' : 'text-green-600'}`}>{product.stock_quantity}</span></p>
                     <p>Category: <span className="font-medium">{product.product_categories?.name || 'N/A'}</span></p>
                     <p>SKU: <span className="font-medium">{product.sku || 'N/A'}</span></p>
@@ -324,6 +437,22 @@ const POSPage: React.FC = () => {
             </div>
 
             <div className="mb-4">
+              <label htmlFor="currency-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Currency</label>
+              <Select onValueChange={setSelectedCurrencyId} value={selectedCurrencyId || ''}>
+                <SelectTrigger id="currency-select">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map((currency) => (
+                    <SelectItem key={currency.id} value={currency.id}>
+                      {currency.name} ({currency.symbol})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="mb-4">
               <label htmlFor="payment-method-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
               <Select onValueChange={setSelectedPaymentMethod} value={selectedPaymentMethod}>
                 <SelectTrigger id="payment-method-select">
@@ -346,11 +475,11 @@ const POSPage: React.FC = () => {
                     <div>
                       <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        ${item.price.toFixed(2)} x {item.quantity} (VAT: {(item.vat_rate * 100).toFixed(2)}%)
+                        {currentCurrencySymbol}{convertPrice(item.price, appDefaultCurrencyId || '', selectedCurrencyId || '').toFixed(2)} x {item.quantity} (VAT: {(item.vat_rate * 100).toFixed(2)}%)
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <p className="font-semibold">${calculateItemTotal(item).toFixed(2)}</p>
+                      <p className="font-semibold">{currentCurrencySymbol}{calculateItemTotal(item).toFixed(2)}</p>
                       <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.id)}>
                         <XCircle className="h-4 w-4 text-red-500" />
                       </Button>
@@ -359,7 +488,7 @@ const POSPage: React.FC = () => {
                 ))}
                 <div className="flex justify-between items-center pt-4 border-t">
                   <span className="text-lg font-bold">Total (incl. VAT):</span>
-                  <span className="text-xl font-bold">${calculateTotal().toFixed(2)}</span>
+                  <span className="text-xl font-bold">{currentCurrencySymbol}{calculateTotal().toFixed(2)}</span>
                 </div>
                 <Button onClick={handleProcessSale} className="w-full mt-4">
                   Process Sale

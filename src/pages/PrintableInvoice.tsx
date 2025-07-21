@@ -30,6 +30,12 @@ interface CreatorProfileDetails {
   last_name: string | null;
 }
 
+interface CurrencyDetails {
+  id: string;
+  code: string;
+  symbol: string;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -40,9 +46,11 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
+  currency_id: string | null; // New field
   invoice_items: InvoiceItem[];
   client_profile: ClientProfileDetails | null; // Added for separate fetch
   creator_profile_details: CreatorProfileDetails | null; // Added for separate fetch
+  currency: CurrencyDetails | null; // Joined currency details
 }
 
 const PrintableInvoice: React.FC = () => {
@@ -73,6 +81,7 @@ const PrintableInvoice: React.FC = () => {
           status,
           created_by,
           created_at,
+          currency_id,
           invoice_items(
             id,
             description,
@@ -82,7 +91,8 @@ const PrintableInvoice: React.FC = () => {
             total,
             service_id,
             services(name)
-          )
+          ),
+          currency:currency_id(code, symbol)
         `)
         .eq('id', id)
         .single();
@@ -187,6 +197,8 @@ const PrintableInvoice: React.FC = () => {
     }
   };
 
+  const currentCurrencySymbol = invoice.currency?.symbol || '$';
+
   return (
     <div className="container mx-auto p-8 bg-white dark:bg-gray-800 shadow-lg rounded-lg my-8 print:shadow-none print:my-0 print:p-0">
       <div className="flex justify-between items-center mb-8 print:hidden">
@@ -234,9 +246,9 @@ const PrintableInvoice: React.FC = () => {
                 <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="py-3 px-6 text-left">{item.description}</td>
                   <td className="py-3 px-6 text-center">{item.quantity}</td>
-                  <td className="py-3 px-6 text-right">${item.unit_price.toFixed(2)}</td>
+                  <td className="py-3 px-6 text-right">{currentCurrencySymbol}{item.unit_price.toFixed(2)}</td>
                   <td className="py-3 px-6 text-right">{(item.vat_rate * 100).toFixed(2)}%</td>
-                  <td className="py-3 px-6 text-right">${item.total.toFixed(2)}</td>
+                  <td className="py-3 px-6 text-right">{currentCurrencySymbol}{item.total.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -249,7 +261,7 @@ const PrintableInvoice: React.FC = () => {
           <div className="flex justify-between py-2 border-t border-gray-200 dark:border-gray-700">
             <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">Total Amount:</span>
             <span className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-              <DollarSign className="h-4 w-4 mr-1" />{invoice.total_amount.toFixed(2)}
+              {currentCurrencySymbol}{invoice.total_amount.toFixed(2)}
             </span>
           </div>
         </div>

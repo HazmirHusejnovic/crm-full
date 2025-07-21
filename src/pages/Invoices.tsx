@@ -34,6 +34,12 @@ interface CreatorProfileDetails {
   last_name: string | null;
 }
 
+interface CurrencyDetails {
+  id: string;
+  code: string;
+  symbol: string;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -44,9 +50,11 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
+  currency_id: string | null; // New field
   invoice_items: InvoiceItem[];
   client_profile: ClientProfileDetails | null; // Added for separate fetch
   creator_profile_details: CreatorProfileDetails | null; // Added for separate fetch
+  currency: CurrencyDetails | null; // Joined currency details
 }
 
 const InvoicesPage: React.FC = () => {
@@ -71,6 +79,7 @@ const InvoicesPage: React.FC = () => {
         status,
         created_by,
         created_at,
+        currency_id,
         invoice_items(
           id,
           description,
@@ -80,7 +89,8 @@ const InvoicesPage: React.FC = () => {
           total,
           service_id,
           services(name)
-        )
+        ),
+        currency:currency_id(code, symbol)
       `);
 
     if (searchTerm) {
@@ -300,14 +310,14 @@ const InvoicesPage: React.FC = () => {
                   <p>Client: <span className="font-medium">{invoice.client_profile?.first_name} {invoice.client_profile?.last_name} ({invoice.client_profile?.email})</span></p>
                   <p>Issue Date: <span className="font-medium">{format(new Date(invoice.issue_date), 'PPP')}</span></p>
                   <p>Due Date: <span className="font-medium">{format(new Date(invoice.due_date), 'PPP')}</span></p>
-                  <p>Total: <span className="font-medium flex items-center"><DollarSign className="h-3 w-3 mr-1" />{invoice.total_amount.toFixed(2)}</span></p>
+                  <p>Total: <span className="font-medium flex items-center">{invoice.currency?.symbol}{invoice.total_amount.toFixed(2)}</span></p>
                   <p>Status: <span className={`font-medium capitalize ${getStatusColor(invoice.status)}`}>{invoice.status}</span></p>
                   <p>Created By: <span className="font-medium">{invoice.creator_profile_details?.first_name} {invoice.creator_profile_details?.last_name}</span></p>
                   <p className="mt-2 font-semibold">Items:</p>
                   <ul className="list-disc list-inside text-xs ml-2">
                     {invoice.invoice_items.map(item => (
                       <li key={item.id}>
-                        {item.description} ({item.quantity} x {item.unit_price.toFixed(2)}) - Total: {item.total.toFixed(2)}
+                        {item.description} ({item.quantity} x {invoice.currency?.symbol}{item.unit_price.toFixed(2)}) - Total: {invoice.currency?.symbol}{item.total.toFixed(2)}
                       </li>
                     ))}
                   </ul>

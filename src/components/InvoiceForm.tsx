@@ -31,6 +31,7 @@ const invoiceFormSchema = z.object({
   issue_date: z.string().min(1, { message: 'Issue date is required.' }),
   due_date: z.string().min(1, { message: 'Due date is required.' }),
   status: z.enum(['draft', 'sent', 'paid', 'overdue', 'cancelled']),
+  currency_id: z.string().uuid({ message: 'Currency is required.' }), // New field
   items: z.array(invoiceItemFormSchema).min(1, { message: 'At least one invoice item is required.' }), // Use the schema here
 });
 
@@ -46,11 +47,29 @@ interface Profile {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  default_currency_id: string | null;
+}
+
+interface Currency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  is_default: boolean;
+}
+
+interface ExchangeRate {
+  from_currency_id: string;
+  to_currency_id: string;
+  rate: number;
 }
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => {
   const { supabase, session } = useSession();
   const [clients, setClients] = useState<Profile[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
 
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceFormSchema),
@@ -60,6 +79,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
       issue_date: initialData?.issue_date ? format(new Date(initialData.issue_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       due_date: initialData?.due_date ? format(new Date(initialData.due_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       status: initialData?.status || 'draft',
+      currency_id: initialData?.currency_id || '', // Initialize new field
       items: initialData?.items || [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }], // Ensure service_id is initialized
     },
   });
@@ -70,20 +90,91 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
   });
 
   useEffect(() => {
-    const fetchClients = async () => {
-      const { data, error } = await supabase
-        .from('profiles_with_auth_emails') // Use the new view
-        .select('id, first_name, last_name, email') // Select email directly
+    const fetchData = async () => {
+      // Fetch app settings for default currency
+      const { data: appSettings, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('default_currency_id')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Failed to load app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppDefaultCurrencyId(appSettings?.default_currency_id || null);
+        if (!initialData?.currency_id) { // Set initial selected currency to app default if not already set
+          form.setValue('currency_id', appSettings?.default_currency_id || '');
+        }
+      }
+
+      // Fetch clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('profiles_with_auth_emails')
+        .select('id, first_name, last_name, email, default_currency_id')
         .eq('role', 'client');
 
-      if (error) {
-        toast.error('Failed to load clients: ' + error.message);
+      if (clientsError) {
+        toast.error('Failed to load clients: ' + clientsError.message);
       } else {
-        setClients(data as Profile[]);
+        setClients(clientsData as Profile[]);
+      }
+
+      // Fetch currencies
+      const { data: currenciesData, error: currenciesError } = await supabase
+        .from('currencies')
+        .select('id, code, name, symbol')
+        .order('code', { ascending: true });
+      if (currenciesError) {
+        toast.error('Failed to load currencies: ' + currenciesError.message);
+      } else {
+        setCurrencies(currenciesData);
+      }
+
+      // Fetch exchange rates
+      const { data: ratesData, error: ratesError } = await supabase
+        .from('exchange_rates')
+        .select('*');
+      if (ratesError) {
+        toast.error('Failed to load exchange rates: ' + ratesError.message);
+      } else {
+        setExchangeRates(ratesData);
       }
     };
-    fetchClients();
-  }, [supabase]);
+    fetchData();
+  }, [supabase, initialData, form]);
+
+  // Update currency_id when client_id changes, if client has a default currency
+  useEffect(() => {
+    const selectedClient = clients.find(client => client.id === form.watch('client_id'));
+    if (selectedClient?.default_currency_id) {
+      form.setValue('currency_id', selectedClient.default_currency_id);
+    } else if (!initialData?.currency_id) {
+      form.setValue('currency_id', appDefaultCurrencyId || ''); // Fallback to app default
+    }
+  }, [form.watch('client_id'), clients, appDefaultCurrencyId, form, initialData]);
+
+
+  const getExchangeRate = (fromCurrencyId: string, toCurrencyId: string): number => {
+    if (fromCurrencyId === toCurrencyId) return 1;
+    const rate = exchangeRates.find(
+      (r) => r.from_currency_id === fromCurrencyId && r.to_currency_id === toCurrencyId
+    );
+    return rate ? rate.rate : 0; // Return 0 if no direct rate found, handle error appropriately
+  };
+
+  const convertPrice = (price: number, productCurrencyId: string, targetCurrencyId: string): number => {
+    if (!productCurrencyId || !targetCurrencyId || productCurrencyId === targetCurrencyId) {
+      return price;
+    }
+
+    const rate = getExchangeRate(productCurrencyId, targetCurrencyId);
+    if (rate === 0) {
+      toast.warning(`No exchange rate found from product's currency to selected invoice currency. Using original price.`);
+      return price; // Fallback to original price if no rate
+    }
+    return price * rate;
+  };
 
   const calculateItemTotal = (item: InvoiceItemFormValues) => {
     const quantity = item.quantity || 0;
@@ -118,6 +209,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
       total_amount: totalAmount,
       status: values.status,
       created_by: initialData?.created_by || session.user.id,
+      currency_id: values.currency_id, // Save the selected currency with the invoice
     };
 
     let invoiceError = null;
@@ -166,6 +258,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
       const itemsToInsert = values.items.map(item => ({
         ...item,
         invoice_id: invoiceId,
+        // Convert unit_price to the invoice's selected currency if it came from a service
+        unit_price: item.service_id
+          ? convertPrice(item.unit_price, appDefaultCurrencyId || '', values.currency_id)
+          : item.unit_price, // Custom items are assumed to be in the invoice's currency
         total: calculateItemTotal(item),
         service_id: item.service_id === 'custom' ? null : item.service_id,
       }));
@@ -184,6 +280,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
     form.reset();
     onSuccess?.();
   };
+
+  const currentInvoiceCurrencyId = form.watch('currency_id');
+  const currentCurrencySymbol = getCurrencySymbol(currentInvoiceCurrencyId);
+
+  function getCurrencySymbol(currencyId: string | null): string {
+    const currency = currencies.find(c => c.id === currencyId);
+    return currency ? currency.symbol : '$';
+  }
 
   return (
     <FormProvider {...form}> {/* Wrap the form with FormProvider */}
@@ -217,6 +321,30 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.first_name} {client.last_name} ({client.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="currency_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Invoice Currency</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || ''}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select invoice currency" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {currencies.map((currency) => (
+                    <SelectItem key={currency.id} value={currency.id}>
+                      {currency.name} ({currency.symbol})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -285,6 +413,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               key={item.id}
               index={index}
               onRemove={remove}
+              invoiceCurrencyId={currentInvoiceCurrencyId} // Pass invoice currency
+              appDefaultCurrencyId={appDefaultCurrencyId} // Pass app default currency
+              exchangeRates={exchangeRates} // Pass exchange rates
+              currencies={currencies} // Pass currencies for symbol lookup
             />
           ))}
         </div>
