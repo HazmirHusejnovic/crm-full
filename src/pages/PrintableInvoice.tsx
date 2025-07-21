@@ -61,7 +61,7 @@ const PrintableInvoice: React.FC = () => {
           status,
           created_by,
           created_at,
-          profiles!invoices_client_id_fkey(first_name, last_name, users(email)),
+          profiles!invoices_client_id_fkey(first_name, last_name, auth.users(email)),
           creator_profile:profiles!invoices_created_by_fkey(first_name, last_name),
           invoice_items(
             id,
