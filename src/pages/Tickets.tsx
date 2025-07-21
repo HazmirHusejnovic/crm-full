@@ -3,10 +3,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input'; // Import Input for search
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select for filter
 import TicketForm from '@/components/TicketForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react'; // Import Search icon
 
 interface Ticket {
   id: string;
@@ -29,10 +31,12 @@ const TicketsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | undefined>(undefined);
+  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
+  const [filterStatus, setFilterStatus] = useState<string>('all'); // New state for status filter
 
   const fetchTickets = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('tickets')
       .select(`
         id,
@@ -47,8 +51,17 @@ const TicketsPage: React.FC = () => {
         profiles!tickets_assigned_to_fkey(first_name, last_name),
         creator_profile:profiles!tickets_created_by_fkey(first_name, last_name),
         tasks(title)
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    if (searchTerm) {
+      query = query.ilike('subject', `%${searchTerm}%`); // Apply search filter
+    }
+
+    if (filterStatus !== 'all') {
+      query = query.eq('status', filterStatus); // Apply status filter
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       toast.error('Failed to load tickets: ' + error.message);
@@ -60,7 +73,7 @@ const TicketsPage: React.FC = () => {
 
   useEffect(() => {
     fetchTickets();
-  }, [supabase]);
+  }, [supabase, searchTerm, filterStatus]); // Re-fetch when search term or filter status changes
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);
@@ -114,6 +127,31 @@ const TicketsPage: React.FC = () => {
             <TicketForm initialData={editingTicket} onSuccess={handleFormSuccess} />
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tickets by subject..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select onValueChange={setFilterStatus} defaultValue={filterStatus}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filter by Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="resolved">Resolved</SelectItem>
+            <SelectItem value="closed">Closed</SelectItem>
+            <SelectItem value="reopened">Reopened</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
