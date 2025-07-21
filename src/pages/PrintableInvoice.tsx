@@ -28,7 +28,7 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { first_name: string | null; last_name: string | null; auth_users: { email: string | null } | null } | null; // Client profile
+  profiles: { first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile
   creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
 }
@@ -61,7 +61,7 @@ const PrintableInvoice: React.FC = () => {
           status,
           created_by,
           created_at,
-          profiles!invoices_client_id_fkey(first_name, last_name, auth_users(email)),
+          profiles!invoices_client_id_fkey(first_name, last_name, users(email)),
           creator_profile:profiles!invoices_created_by_fkey(first_name, last_name),
           invoice_items(
             id,
@@ -150,7 +150,7 @@ const PrintableInvoice: React.FC = () => {
         <div>
           <h2 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Billed To:</h2>
           <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.first_name} {invoice.profiles?.last_name}</p>
-          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.auth_users?.email}</p>
+          <p className="text-gray-700 dark:text-gray-300">{invoice.profiles?.users?.email}</p>
           {/* Add client address if available */}
         </div>
         <div className="text-right">

@@ -33,7 +33,7 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   created_by: string;
   created_at: string;
-  profiles: { first_name: string | null; last_name: string | null; auth_users: { email: string | null } | null } | null; // Client profile
+  profiles: { first_name: string | null; last_name: string | null; users: { email: string | null } | null } | null; // Client profile
   creator_profile: { first_name: string | null; last_name: string | null } | null; // Creator profile
   invoice_items: InvoiceItem[];
 }
@@ -62,7 +62,7 @@ const InvoicesPage: React.FC = () => {
         status,
         created_by,
         created_at,
-        profiles!invoices_client_id_fkey(first_name, last_name, auth_users(email)),
+        profiles!invoices_client_id_fkey(first_name, last_name, users(email)),
         creator_profile:profiles!invoices_created_by_fkey(first_name, last_name),
         invoice_items(
           id,
@@ -224,7 +224,7 @@ const InvoicesPage: React.FC = () => {
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <p>Client: <span className="font-medium">{invoice.profiles?.first_name} {invoice.profiles?.last_name} ({invoice.profiles?.auth_users?.email})</span></p>
+                  <p>Client: <span className="font-medium">{invoice.profiles?.first_name} {invoice.profiles?.last_name} ({invoice.profiles?.users?.email})</span></p>
                   <p>Issue Date: <span className="font-medium">{format(new Date(invoice.issue_date), 'PPP')}</span></p>
                   <p>Due Date: <span className="font-medium">{format(new Date(invoice.due_date), 'PPP')}</span></p>
                   <p>Total: <span className="font-medium flex items-center"><DollarSign className="h-3 w-3 mr-1" />{invoice.total_amount.toFixed(2)}</span></p>
