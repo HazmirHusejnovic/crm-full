@@ -7,15 +7,28 @@ import FinancialSettingsForm from '@/components/FinancialSettingsForm';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface AppSettings {
   company_name: string | null;
   company_address: string | null;
   company_email: string | null;
   company_phone: string | null;
-  company_logo_url: string | null; // New field
-  bank_account_details: string | null; // New field
+  company_logo_url: string | null;
+  bank_account_details: string | null;
   default_vat_rate: number;
+  module_dashboard_enabled: boolean;
+  module_tasks_enabled: boolean;
+  module_tickets_enabled: boolean;
+  module_services_enabled: boolean;
+  module_products_enabled: boolean;
+  module_pos_enabled: boolean;
+  module_invoices_enabled: boolean;
+  module_reports_enabled: boolean;
+  module_users_enabled: boolean;
+  module_profile_enabled: boolean;
+  module_settings_enabled: boolean;
 }
 
 const SettingsPage: React.FC = () => {
@@ -60,6 +73,22 @@ const SettingsPage: React.FC = () => {
       fetchAppSettings();
     }
   }, [supabase, session]);
+
+  const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
+    if (!appSettings) return;
+
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ [moduleName]: checked })
+      .eq('id', '00000000-0000-0000-0000-000000000001');
+
+    if (error) {
+      toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
+    } else {
+      toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
+      setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
+    }
+  };
 
   if (loading) {
     return (
@@ -118,6 +147,36 @@ const SettingsPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <FinancialSettingsForm initialData={appSettings} onSuccess={fetchAppSettings} />
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-full">
+              <CardHeader>
+                <CardTitle>Module Management</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: 'module_dashboard_enabled', label: 'Dashboard Module' },
+                  { key: 'module_tasks_enabled', label: 'Tasks Module' },
+                  { key: 'module_tickets_enabled', label: 'Tickets Module' },
+                  { key: 'module_services_enabled', label: 'Services Module' },
+                  { key: 'module_products_enabled', label: 'Products Module' },
+                  { key: 'module_pos_enabled', label: 'POS Module' },
+                  { key: 'module_invoices_enabled', label: 'Invoices Module' },
+                  { key: 'module_reports_enabled', label: 'Reports Module' },
+                  { key: 'module_users_enabled', label: 'User Management Module' },
+                  { key: 'module_profile_enabled', label: 'Profile Module' },
+                  { key: 'module_settings_enabled', label: 'Settings Module' },
+                ].map((module) => (
+                  <div key={module.key} className="flex items-center justify-between space-x-2 p-2 border rounded-md">
+                    <Label htmlFor={module.key}>{module.label}</Label>
+                    <Switch
+                      id={module.key}
+                      checked={appSettings[module.key as keyof AppSettings] as boolean}
+                      onCheckedChange={(checked) => handleModuleToggle(module.key as keyof AppSettings, checked)}
+                    />
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </>
