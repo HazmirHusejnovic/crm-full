@@ -28,6 +28,7 @@ import MainLayout from "./components/MainLayout";
 import React, { useEffect, useState } from "react";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { toast } from "sonner";
+import { usePermissions } from "./hooks/usePermissions"; // Import the new hook
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ interface AppSettings {
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
+  module_permissions: Record<string, Record<string, string[]>> | null; // New field
 }
 
 // Component to fetch settings and conditionally render routes
@@ -82,7 +84,7 @@ const AppRoutes = () => {
           console.error('Error fetching user role:', roleError.message);
           toast.error('Failed to fetch user role for routing.');
         } else {
-          setCurrentUserRole(roleData.role); // Corrected from data.role to roleData.role
+          setCurrentUserRole(roleData.role);
         }
       }
       setLoadingSettings(false);
@@ -91,16 +93,8 @@ const AppRoutes = () => {
     fetchSettingsAndRole();
   }, [session, supabase]);
 
-  // Helper function to check if a module is enabled and if user has permission
-  const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
-    if (!appSettings) return false; // Should not happen if loading is complete
-    if (!session || !currentUserRole) return false; // User must be logged in and role fetched
-
-    const moduleEnabled = appSettings[moduleKey];
-    const userHasRequiredRole = requiredRoles.includes(currentUserRole);
-
-    return moduleEnabled && userHasRequiredRole; // Corrected from userHasRequiredRequiredRole to userHasRequiredRole
-  };
+  // Use the new usePermissions hook
+  const { canViewModule } = usePermissions(appSettings, currentUserRole);
 
   if (loadingSettings) {
     return (
@@ -115,13 +109,13 @@ const AppRoutes = () => {
       <Route path="/login" element={<Login />} />
       <Route element={<MainLayout />}>
         <Route path="/" element={<Index />} />
-        {isModuleEnabled('module_dashboard_enabled') && <Route path="/dashboard" element={<DashboardPage />} />}
-        {isModuleEnabled('module_tasks_enabled') && <Route path="/tasks" element={<TasksPage />} />}
-        {isModuleEnabled('module_tickets_enabled') && <Route path="/tickets" element={<TicketsPage />} />}
-        {isModuleEnabled('module_services_enabled', ['worker', 'administrator']) && <Route path="/services" element={<ServicesPage />} />}
-        {isModuleEnabled('module_products_enabled', ['administrator']) && <Route path="/products" element={<ProductsPage />} />}
-        {isModuleEnabled('module_pos_enabled', ['worker', 'administrator']) && <Route path="/pos" element={<POSPage />} />}
-        {isModuleEnabled('module_invoices_enabled', ['worker', 'administrator']) && (
+        {canViewModule('dashboard') && <Route path="/dashboard" element={<DashboardPage />} />}
+        {canViewModule('tasks') && <Route path="/tasks" element={<TasksPage />} />}
+        {canViewModule('tickets') && <Route path="/tickets" element={<TicketsPage />} />}
+        {canViewModule('services') && <Route path="/services" element={<ServicesPage />} />}
+        {canViewModule('products') && <Route path="/products" element={<ProductsPage />} />}
+        {canViewModule('pos') && <Route path="/pos" element={<POSPage />} />}
+        {canViewModule('invoices') && (
           <>
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/invoices/new" element={<InvoiceFormPage />} />
@@ -129,17 +123,17 @@ const AppRoutes = () => {
             <Route path="/invoices/print/:id" element={<PrintableInvoice />} />
           </>
         )}
-        {isModuleEnabled('module_reports_enabled', ['worker', 'administrator']) && <Route path="/reports" element={<ReportsPage />} />}
-        {isModuleEnabled('module_users_enabled', ['administrator']) && (
+        {canViewModule('reports') && <Route path="/reports" element={<ReportsPage />} />}
+        {canViewModule('users') && (
           <>
             <Route path="/users" element={<UserManagementPage />} />
             <Route path="/clients/:id" element={<ClientDetailsPage />} />
           </>
         )}
-        {isModuleEnabled('module_profile_enabled') && <Route path="/profile" element={<ProfilePage />} />}
-        {isModuleEnabled('module_settings_enabled', ['administrator']) && <Route path="/settings" element={<SettingsPage />} />}
-        {isModuleEnabled('module_wiki_enabled') && <Route path="/wiki" element={<WikiPage />} />}
-        {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />}
+        {canViewModule('profile') && <Route path="/profile" element={<ProfilePage />} />}
+        {canViewModule('settings') && <Route path="/settings" element={<SettingsPage />} />}
+        {canViewModule('wiki') && <Route path="/wiki" element={<WikiPage />} />}
+        {canViewModule('chat') && <Route path="/chat" element={<ChatPage />} />}
 
         {/* Redirect to dashboard if root path is accessed and user is logged in */}
         {session && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
