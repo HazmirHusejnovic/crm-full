@@ -18,10 +18,19 @@ interface Chat {
   last_message_at: string | null;
 }
 
+// Define an enriched chat type to include participant details for display
+interface EnrichedChat extends Chat {
+  participants: Array<{
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
+}
+
 const ChatPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [loading, setLoading] = useState(true);
-  const [conversations, setConversations] = useState<Chat[]>([]);
+  const [conversations, setConversations] = useState<EnrichedChat[]>([]); // Use EnrichedChat
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
 
@@ -32,24 +41,62 @@ const ChatPage: React.FC = () => {
       return;
     }
 
-    const { data, error } = await supabase
+    // First, fetch all chat IDs the current user is a part of
+    const { data: userChatParticipants, error: userParticipantsError } = await supabase
       .from('chat_participants')
-      .select(`
-          chat_id,
-          chats(id, type, name, last_message_at)
-        `)
-      .eq('user_id', session.user.id)
-      .order('last_message_at', { foreignTable: 'chats', ascending: false, nullsFirst: false });
+      .select('chat_id')
+      .eq('user_id', session.user.id);
 
-    if (error) {
-      toast.error('Failed to load conversations: ' + error.message);
+    if (userParticipantsError) {
+      toast.error('Failed to load user chat memberships: ' + userParticipantsError.message);
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
+
+    const chatIds = userChatParticipants.map(p => p.chat_id);
+    if (chatIds.length === 0) {
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
+
+    // Now fetch all chat details and their participants for these chat IDs
+    const { data: chatsWithParticipants, error: chatsError } = await supabase
+      .from('chats')
+      .select(`
+        id,
+        type,
+        name,
+        last_message_at,
+        chat_participants(
+          user_id,
+          profiles(id, first_name, last_name)
+        )
+      `)
+      .in('id', chatIds)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (chatsError) {
+      toast.error('Failed to load conversations: ' + chatsError.message);
+      setConversations([]);
     } else {
-      const fetchedChats = data.map(p => p.chats).filter(chat => chat !== null) as Chat[];
-      setConversations(fetchedChats);
-      if (fetchedChats.length > 0 && !selectedChatId) {
-        setSelectedChatId(fetchedChats[0].id);
-      } else if (fetchedChats.length === 0) {
-        setSelectedChatId(null); // No chats, so no selected chat
+      const fetchedConversations: EnrichedChat[] = chatsWithParticipants.map((chat: any) => ({
+        id: chat.id,
+        type: chat.type,
+        name: chat.name,
+        last_message_at: chat.last_message_at,
+        participants: chat.chat_participants.map((cp: any) => ({
+          id: cp.user_id,
+          first_name: cp.profiles?.first_name,
+          last_name: cp.profiles?.last_name,
+        })),
+      }));
+      setConversations(fetchedConversations);
+      if (fetchedConversations.length > 0 && !selectedChatId) {
+        setSelectedChatId(fetchedConversations[0].id);
+      } else if (fetchedConversations.length === 0) {
+        setSelectedChatId(null);
       }
     }
     setLoading(false);
@@ -58,6 +105,7 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     fetchConversations();
 
+    // Real-time listener for new messages to update last_message_at and re-sort
     const channel = supabase
       .channel('chat_updates')
       .on(
@@ -72,6 +120,7 @@ const ChatPage: React.FC = () => {
               }
               return chat;
             });
+            // Sort by last_message_at, most recent first
             return updatedConversations.sort((a, b) => {
               if (!a.last_message_at) return 1;
               if (!b.last_message_at) return -1;

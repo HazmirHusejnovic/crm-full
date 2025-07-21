@@ -4,15 +4,21 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useSession } from '@/contexts/SessionContext';
 
-interface Chat {
+// Define an enriched chat type to include participant details for display
+interface EnrichedChat {
   id: string;
   type: 'private' | 'group';
   name: string | null;
   last_message_at: string | null;
+  participants: Array<{
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
 }
 
 interface ConversationListProps {
-  conversations: Chat[];
+  conversations: EnrichedChat[]; // Use EnrichedChat type
   selectedChatId: string | null;
   onSelectChat: (chatId: string) => void;
 }
@@ -20,13 +26,17 @@ interface ConversationListProps {
 const ConversationList: React.FC<ConversationListProps> = ({ conversations, selectedChatId, onSelectChat }) => {
   const { session } = useSession();
 
-  const getChatDisplayName = (chat: Chat) => {
+  const getChatDisplayName = (chat: EnrichedChat) => {
     if (chat.type === 'group') {
       return chat.name || 'Group Chat';
     }
-    // For private chats, we'd ideally fetch other participant's name
-    // For now, we'll just use a generic name or the chat ID
-    return 'Private Chat'; // Placeholder, will improve later
+    // For private chats, find the other participant's name
+    const otherParticipant = chat.participants.find(p => p.id !== session?.user?.id);
+    if (otherParticipant) {
+      const fullName = `${otherParticipant.first_name || ''} ${otherParticipant.last_name || ''}`.trim();
+      return fullName || 'Unknown User';
+    }
+    return 'Private Chat'; // Fallback if no other participant found (shouldn't happen for valid private chats)
   };
 
   return (
