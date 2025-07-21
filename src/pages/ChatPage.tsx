@@ -35,7 +35,7 @@ const ChatPage: React.FC = () => {
           chats(id, type, name, last_message_at)
         `)
         .eq('user_id', session.user.id)
-        .order('last_message_at', { ascending: false, nullsFirst: false });
+        .order('last_message_at', { foreignTable: 'chats', ascending: false, nullsFirst: false }); // Corrected order by
 
       if (error) {
         toast.error('Failed to load conversations: ' + error.message);
