@@ -105,9 +105,8 @@ const ClientDetailsPage: React.FC = () => {
           id,
           first_name,
           last_name,
-          role,
-          users(email)
-        `)
+          role
+        `) // Removed users(email) from here
         .eq('id', id)
         .single();
 
@@ -115,13 +114,19 @@ const ClientDetailsPage: React.FC = () => {
         toast.error('Failed to load client profile: ' + profileError.message);
         hasError = true;
       } else if (profileData) {
-        setClientProfile({
-          id: profileData.id,
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          role: profileData.role,
-          email: profileData.users?.email || 'N/A',
-        });
+        // Now fetch email separately for this single profile
+        const { data: userData, error: userEmailError } = await supabase
+          .from('profiles') // Querying profiles again to get the joined auth.users email
+          .select('users(email)')
+          .eq('id', profileData.id)
+          .single();
+
+        if (userEmailError) {
+          console.error('Error fetching email for client profile:', profileData.id, userEmailError.message);
+          setClientProfile({ ...profileData, email: 'Error fetching email' });
+        } else {
+          setClientProfile({ ...profileData, email: userData?.users?.email || 'N/A' });
+        }
       }
 
       // Fetch client's tasks (created by or assigned to)

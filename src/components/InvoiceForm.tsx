@@ -73,18 +73,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
     const fetchClients = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, auth_users(email)')
+        .select('id, first_name, last_name') // Removed auth_users(email) from here
         .eq('role', 'client');
 
       if (error) {
         toast.error('Failed to load clients: ' + error.message);
       } else {
-        setClients(data.map(p => ({
-          id: p.id,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          email: p.auth_users?.email || 'N/A'
-        })));
+        // Now fetch emails separately for each client profile
+        const clientsWithEmails = await Promise.all(data.map(async (profile: any) => {
+          const { data: userData, error: userError } = await supabase
+            .from('profiles') // Querying profiles again to get the joined auth.users email
+            .select('users(email)')
+            .eq('id', profile.id)
+            .single();
+
+          if (userError) {
+            console.error('Error fetching email for client profile:', profile.id, userError.message);
+            return { ...profile, email: 'Error fetching email' };
+          } else {
+            return { ...profile, email: userData?.users?.email || 'N/A' };
+          }
+        }));
+        setClients(clientsWithEmails as Profile[]);
       }
     };
     fetchClients();
