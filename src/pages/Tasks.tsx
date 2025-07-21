@@ -9,6 +9,7 @@ import TaskForm from '@/components/TaskForm';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner'; // Import the new LoadingSpinner
 
 interface Task {
   id: string;
@@ -106,7 +107,11 @@ const TasksPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading tasks...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 
   return (
