@@ -4,6 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
+import CurrencySettingsForm from '@/components/CurrencySettingsForm'; // Import new component
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -29,6 +30,7 @@ interface AppSettings {
   module_users_enabled: boolean;
   module_profile_enabled: boolean;
   module_settings_enabled: boolean;
+  default_currency_id: string | null; // Add new field
 }
 
 const SettingsPage: React.FC = () => {
@@ -177,6 +179,15 @@ const SettingsPage: React.FC = () => {
                     />
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-full">
+              <CardHeader>
+                <CardTitle>Currency & Exchange Rate Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CurrencySettingsForm onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
           </>
