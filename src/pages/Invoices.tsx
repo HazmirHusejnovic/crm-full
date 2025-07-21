@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, DollarSign, Printer, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface InvoiceItem {
@@ -181,6 +182,20 @@ const InvoicesPage: React.FC = () => {
     }
   };
 
+  const handleUpdateStatus = async (invoiceId: string, newStatus: Invoice['status']) => {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ status: newStatus })
+      .eq('id', invoiceId);
+
+    if (error) {
+      toast.error('Failed to update invoice status: ' + error.message);
+    } else {
+      toast.success(`Invoice status updated to "${newStatus}"!`);
+      fetchInvoices(); // Re-fetch to update the list
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'paid': return 'text-green-600';
@@ -250,9 +265,33 @@ const InvoicesPage: React.FC = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleEditInvoiceClick(invoice)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteInvoice(invoice.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {invoice.status !== 'sent' && invoice.status !== 'paid' && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'sent')}>
+                            Mark as Sent
+                          </DropdownMenuItem>
+                        )}
+                        {invoice.status !== 'paid' && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'paid')}>
+                            Mark as Paid
+                          </DropdownMenuItem>
+                        )}
+                        {invoice.status !== 'cancelled' && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(invoice.id, 'cancelled')}>
+                            Mark as Cancelled
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteInvoice(invoice.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardTitle>
               </CardHeader>
