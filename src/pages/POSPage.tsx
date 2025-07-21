@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { Search, ShoppingCart, XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { Search, ShoppingCart, XCircle, Receipt } from 'lucide-react'; // Import Receipt icon for fiscalization
+import { useNavigate } from 'react-router-dom';
 
 interface Product {
   id: string;
@@ -24,7 +24,7 @@ interface CartItem extends Product {
 
 const POSPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -201,6 +201,16 @@ const POSPage: React.FC = () => {
     }
   };
 
+  const handleFiscalizeSale = () => {
+    // This is a placeholder for actual fiscalization logic.
+    // In a real application, you would make an API call to your fiscalization service here.
+    // This might involve sending the invoice details, receiving a fiscal receipt number, etc.
+    toast.success('Sale fiscalized successfully! (Placeholder)');
+    console.log('Fiscalizing sale...');
+    // After successful fiscalization, you might update the invoice record with fiscal data
+    // or trigger a print of the fiscal receipt.
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -294,6 +304,9 @@ const POSPage: React.FC = () => {
                 </div>
                 <Button onClick={handleProcessSale} className="w-full mt-4">
                   Process Sale
+                </Button>
+                <Button onClick={handleFiscalizeSale} className="w-full mt-2" variant="outline">
+                  <Receipt className="mr-2 h-4 w-4" /> Fiscalize Sale (Placeholder)
                 </Button>
               </div>
             )}
