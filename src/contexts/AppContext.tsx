@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from './SessionContext';
 import { toast } from 'sonner';
 
@@ -31,6 +31,7 @@ interface AppContextType {
   appSettings: AppSettings | null;
   currentUserRole: string | null;
   loadingAppSettings: boolean;
+  refetchAppSettings: () => void; // Add a function to manually refetch
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -41,9 +42,19 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [loadingAppSettings, setLoadingAppSettings] = useState(true);
 
-  useEffect(() => {
-    const fetchGlobalAppData = async () => {
+  // Use a ref to track the last loaded user ID to prevent unnecessary re-fetches
+  const lastLoadedUserId = useRef<string | null | undefined>(undefined);
+
+  // Use a ref to track if app settings have been fetched at least once
+  const hasFetchedAppSettings = useRef(false);
+
+  const fetchGlobalAppData = useCallback(async () => {
+    // Only set loading to true and fetch if the user ID has changed,
+    // or if app settings haven't been fetched yet.
+    if (session?.user?.id !== lastLoadedUserId.current || !hasFetchedAppSettings.current) {
       setLoadingAppSettings(true);
+      lastLoadedUserId.current = session?.user?.id || null; // Update the ref immediately
+      hasFetchedAppSettings.current = true; // Mark as fetched
 
       // Fetch app settings
       const { data: settingsData, error: settingsError } = await supabase
@@ -55,6 +66,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (settingsError) {
         console.error('Error fetching global app settings:', settingsError.message);
         toast.error('Failed to load global app settings.');
+        setAppSettings(null); // Ensure state is clear on error
       } else {
         setAppSettings(settingsData as AppSettings);
       }
@@ -69,6 +81,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (roleError) {
           console.error('Error fetching current user role:', roleError.message);
           toast.error('Failed to fetch your user role.');
+          setCurrentUserRole(null); // Clear role on error
         } else {
           setCurrentUserRole(roleData.role);
         }
@@ -77,13 +90,25 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       setLoadingAppSettings(false);
-    };
+    } else {
+      // If session.user.id is the same and appSettings are already loaded,
+      // and it's not the initial fetch, ensure loading is false.
+      setLoadingAppSettings(false);
+    }
+  }, [supabase, session]); // Dependencies for useCallback: supabase, session
 
+  useEffect(() => {
     fetchGlobalAppData();
-  }, [supabase, session]); // Re-fetch when supabase client or session changes
+  }, [fetchGlobalAppData]); // Dependency for useEffect: fetchGlobalAppData (memoized by useCallback)
+
+  // Provide a way to manually refetch app settings (e.g., after a form submission in SettingsPage)
+  const refetchAppSettings = useCallback(() => {
+    hasFetchedAppSettings.current = false; // Reset flag to force re-fetch
+    fetchGlobalAppData();
+  }, [fetchGlobalAppData]);
 
   return (
-    <AppContext.Provider value={{ appSettings, currentUserRole, loadingAppSettings }}>
+    <AppContext.Provider value={{ appSettings, currentUserRole, loadingAppSettings, refetchAppSettings }}>
       {children}
     </AppContext.Provider>
   );
