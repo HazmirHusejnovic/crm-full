@@ -1,16 +1,17 @@
-import React from 'react';
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import ChatPage from '@/pages/ChatPage'; // Default import
 // ... other imports ...
 
-function App() {
-  const router = createBrowserRouter([
-    // ... your routes ...
-  ]);
+const router = createBrowserRouter([
+  {
+    path: '/chat',
+    element: <ChatPage /> // Must use default export
+  },
+  // ... other routes
+]);
 
-  return (
-    <RouterProvider router={router} />
-  );
+function App() {
+  return <RouterProvider router={router} />;
 }
 
-// Add this default export
 export default App;

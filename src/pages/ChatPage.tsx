@@ -2,14 +2,13 @@ import React from 'react';
 // ... other imports ...
 
 const ChatPage = () => {
-  // ... component implementation ...
+  // ... your component implementation ...
   return (
-    // ... JSX ...
+    // ... your JSX ...
   );
 };
 
-// Add this default export
+// Add this default export (required for route components)
 export default ChatPage;
 
-// Keep named export if needed
-export { ChatPage };
+// Remove any conflicting named exports if they exist
