@@ -75,19 +75,19 @@ const POSPage: React.FC = () => {
 
   useEffect(() => {
     const fetchAllData = async () => {
-      setLoadingData(true); // Start loading for all data on this page
-
-      // Wait for session and global app settings/role to load
-      if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(false);
+      // Wait for global app settings and user role to load
+      if (loadingAppSettings || !appSettings || !currentUserRole) {
+        setLoadingData(true); // Still loading global data
         return;
       }
 
-      // Now that appSettings and currentUserRole are loaded, check permission
+      // Now that global data is loaded, check permissions
       if (!canViewModule('pos')) {
-        setLoadingData(false);
+        setLoadingData(false); // Not authorized, stop loading page data
         return; // Exit if not authorized
       }
+
+      setLoadingData(true); // Start loading page-specific data
 
       // Set app default currency from context
       setAppDefaultCurrencyId(appSettings.default_currency_id || null);
@@ -165,7 +165,7 @@ const POSPage: React.FC = () => {
     };
 
     fetchAllData();
-  }, [supabase, searchTerm, selectedCurrencyId, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   // Update selected currency when client changes
   useEffect(() => {

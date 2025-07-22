@@ -42,17 +42,19 @@ const TasksPage: React.FC = () => {
   const fetchTasks = async () => {
     setLoadingData(true); // Start loading for tasks specific data
 
-    // Wait for session and global app settings/role to load
-    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(false);
+    // Wait for global app settings and user role to load
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Still loading global data
       return;
     }
 
-    // Now that appSettings and currentUserRole are loaded, check permission
+    // Now that global data is loaded, check permissions
     if (!canViewModule('tasks')) {
-      setLoadingData(false);
-      return; // Not authorized
+      setLoadingData(false); // Not authorized, stop loading page data
+      return;
     }
+
+    setLoadingData(true); // Start loading page-specific data
 
     let query = supabase
       .from('tasks')
@@ -89,7 +91,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);

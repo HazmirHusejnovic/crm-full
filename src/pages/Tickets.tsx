@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } => '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TicketForm from '@/components/TicketForm';
@@ -44,17 +44,19 @@ const TicketsPage: React.FC = () => {
   const fetchTickets = async () => {
     setLoadingData(true); // Start loading for tickets specific data
 
-    // Wait for session and global app settings/role to load
-    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(false);
+    // Wait for global app settings and user role to load
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Still loading global data
       return;
     }
 
-    // Now that appSettings and currentUserRole are loaded, check permission
+    // Now that global data is loaded, check permissions
     if (!canViewModule('tickets')) {
-      setLoadingData(false);
-      return; // Not authorized
+      setLoadingData(false); // Not authorized, stop loading page data
+      return;
     }
+
+    setLoadingData(true); // Start loading page-specific data
 
     let query = supabase
       .from('tickets')
@@ -93,7 +95,7 @@ const TicketsPage: React.FC = () => {
 
   useEffect(() => {
     fetchTickets();
-  }, [supabase, searchTerm, filterStatus, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);

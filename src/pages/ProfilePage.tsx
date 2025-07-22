@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface Profile {
   id: string;
@@ -15,68 +16,33 @@ interface Profile {
   default_currency_id: string | null; // Add this field as it's used in ProfileForm
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const ProfilePage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule } = usePermissions();
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      setLoading(true);
-      let currentRole: string | null = null;
-      let currentSettings: AppSettings | null = null;
+      // Wait for global app settings and user role to load
+      if (loadingAppSettings || !appSettings || !currentUserRole) {
+        setLoadingData(true); // Still loading global data
+        return;
+      }
+
+      // Now that global data is loaded, check permissions
+      if (!canViewModule('profile')) {
+        setLoadingData(false); // Not authorized, stop loading page data
+        return;
+      }
+
+      setLoadingData(true); // Start loading page-specific data
 
       if (!session?.user?.id) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        currentRole = roleData.role;
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        currentSettings = settingsData as AppSettings;
-        setAppSettings(settingsData as AppSettings);
-      }
-
-      if (!currentRole || !currentSettings) {
-        setLoading(false);
-        return;
-      }
-
-      // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-      if (!canViewModule('profile')) { // Koristimo canViewModule direktno
-        setLoading(false);
+        setLoadingData(false);
         return;
       }
 
@@ -105,16 +71,16 @@ const ProfilePage: React.FC = () => {
           default_currency_id: data.default_currency_id,
         });
       }
-      setLoading(false);
+      setLoadingData(false);
     };
 
     fetchProfileData();
-  }, [supabase, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleFormSuccess = () => {
     // Re-fetch profile to show updated data
     if (session?.user?.id) {
-      setLoading(true);
+      setLoadingData(true);
       supabase
         .from('profiles_with_auth_emails') // Use the new view
         .select(`
@@ -140,12 +106,14 @@ const ProfilePage: React.FC = () => {
               default_currency_id: data.default_currency_id,
             });
           }
-          setLoading(false);
+          setLoadingData(false);
         });
     }
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

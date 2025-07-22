@@ -53,17 +53,19 @@ const ServicesPage: React.FC = () => {
   const fetchAllData = async () => {
     setLoadingData(true); // Start loading for all data on this page
 
-    // Wait for session and global app settings/role to load
-    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(false);
+    // Wait for global app settings and user role to load
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Still loading global data
       return;
     }
 
-    // Now that appSettings and currentUserRole are loaded, check permission
+    // Now that global data is loaded, check permissions
     if (!canViewModule('services')) {
-      setLoadingData(false);
-      return; // Not authorized
+      setLoadingData(false); // Not authorized, stop loading page data
+      return;
     }
+
+    setLoadingData(true); // Start loading page-specific data
 
     // Fetch categories
     const { data: categoriesData, error: categoriesError } = await supabase
@@ -112,7 +114,7 @@ const ServicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);

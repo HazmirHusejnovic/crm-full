@@ -32,19 +32,19 @@ const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      setLoadingData(true); // Start loading for dashboard specific data
-
-      // Wait for session and global app settings/role to load
-      if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(false);
+      // Wait for global app settings and user role to load
+      if (loadingAppSettings || !appSettings || !currentUserRole) {
+        setLoadingData(true); // Still loading global data
         return;
       }
 
-      // Now that appSettings and currentUserRole are loaded, check permission
+      // Now that global data is loaded, check permissions
       if (!canViewModule('dashboard')) {
-        setLoadingData(false);
-        return; // Not authorized
+        setLoadingData(false); // Not authorized, stop loading page data
+        return;
       }
+
+      setLoadingData(true); // Start loading page-specific data
 
       let hasDataFetchError = false;
 
@@ -121,7 +121,7 @@ const DashboardPage: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, [supabase, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   // Overall loading state for the page
   const overallLoading = loadingAppSettings || loadingData;
