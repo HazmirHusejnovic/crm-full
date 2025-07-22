@@ -1,24 +1,9 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { Session, SupabaseClient } from '@supabase/supabase-js';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-
-interface SessionContextType {
-  supabase: SupabaseClient;
-  session: Session | null;
-}
-
-const SessionContext = createContext<SessionContextType | undefined>(undefined);
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ulkesgvggxkopvwnaqju.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsa2VzZ3ZnZ3hrb3B2d25hcWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMDcyMTMsImV4cCI6MjA2ODY4MzIxM30.xNX-I6OPN99BTqAMN-xuA32mjwiD-AtVXBLEidObT84';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ... postojeći kod ...
 
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const sessionRef = useRef<Session | null>(null);
@@ -27,25 +12,39 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     let mounted = true;
 
     const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (mounted) {
-        sessionRef.current = currentSession;
-        setSession(currentSession);
-        setLoading(false);
+      try {
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (mounted) {
+          sessionRef.current = currentSession;
+          setSession(currentSession);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('Session error:', err);
+          setError('Failed to get session');
+          setLoading(false);
+        }
       }
     };
 
     getSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      // Spriječava nepotrebne re-rendere ako se session nije promijenio
-      if (JSON.stringify(currentSession) !== JSON.stringify(sessionRef.current)) {
-        sessionRef.current = currentSession;
-        setSession(currentSession);
-      }
+      try {
+        if (JSON.stringify(currentSession) !== JSON.stringify(sessionRef.current)) {
+          sessionRef.current = currentSession;
+          setSession(currentSession);
+        }
 
-      if (event === 'SIGNED_OUT') {
-        navigate('/login');
+        if (event === 'SIGNED_OUT') {
+          navigate('/login');
+        }
+      } catch (err) {
+        console.error('Auth state change error:', err);
       }
     });
 
@@ -59,17 +58,17 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     return <div className="flex items-center justify-center min-h-screen">{t('loading')}</div>;
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
+
   return (
     <SessionContext.Provider value={{ supabase, session }}>
       {children}
     </SessionContext.Provider>
   );
-};
-
-export const useSession = () => {
-  const context = useContext(SessionContext);
-  if (context === undefined) {
-    throw new Error('useSession must be used within a SessionContextProvider');
-  }
-  return context;
 };
