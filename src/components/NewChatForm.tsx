@@ -1,26 +1,25 @@
-const onSubmit = async (values: NewChatFormValues) => {
-  if (!session?.user?.id) {
-    toast.error('User not authenticated.');
-    return;
-  }
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
+// ... other imports ...
 
-  try {
-    const { data: newChatData, error: chatError } = await supabase
-      .from('chats')
-      .insert({ 
-        type: 'private',
-        name: values.name || null,
-        created_by: session.user.id, // This must match your column name
-        created_at: new Date().toISOString()
-      })
-      .select('id')
-      .single();
+interface NewChatFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: (chatId: string) => void;
+}
 
-    if (chatError) throw chatError;
-
-    // Rest of your logic...
-  } catch (error) {
-    console.error('Chat creation error:', error);
-    toast.error('Failed to create chat');
-  }
+// Your component implementation
+const NewChatForm = ({ isOpen, onClose, onSuccess }: NewChatFormProps) => {
+  // ... component logic ...
+  
+  return (
+    // ... your JSX ...
+  );
 };
+
+// Add this line for default export
+export default NewChatForm;
+
+// Keep named export if needed elsewhere
+export { NewChatForm };
