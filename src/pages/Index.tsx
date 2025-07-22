@@ -10,7 +10,6 @@ const Index = () => {
     if (!session) {
       navigate('/login');
     } else {
-      // Redirect to dashboard if already logged in and on the root path
       navigate('/dashboard');
     }
   }, [session, navigate]);

@@ -21,52 +21,39 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  // Use a ref to track the user ID of the session currently in state.
-  // This helps prevent unnecessary state updates if only the session token refreshes.
-  const currentSessionUserIdRef = useRef<string | null | undefined>(undefined);
+  const sessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
-    let isMounted = true; // Flag to prevent state updates on unmounted component
+    let mounted = true;
 
-    // 1. Initial session check
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (isMounted) {
-        setSession(initialSession);
-        currentSessionUserIdRef.current = initialSession?.user?.id || null;
-        setLoading(false); // Initial load complete
-      }
-    });
-
-    // 2. Real-time auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (!isMounted) return;
-
-      const newUserId = currentSession?.user?.id || null;
-
-      // Only update React state if the user ID has actually changed
-      // or if it's a sign-out event (where newUserId becomes null and currentSessionUserIdRef.current might not be null yet)
-      if (newUserId !== currentSessionUserIdRef.current || _event === 'SIGNED_OUT') {
+    const getSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (mounted) {
+        sessionRef.current = currentSession;
         setSession(currentSession);
-        currentSessionUserIdRef.current = newUserId; // Update ref to reflect new state
+        setLoading(false);
+      }
+    };
+
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      // Spriječava nepotrebne re-rendere ako se session nije promijenio
+      if (JSON.stringify(currentSession) !== JSON.stringify(sessionRef.current)) {
+        sessionRef.current = currentSession;
+        setSession(currentSession);
       }
 
-      // Handle navigation based on auth events
-      if (_event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         navigate('/login');
-      } else if (_event === 'SIGNED_IN' || _event === 'USER_UPDATED') {
-        // If signed in/updated and currently on login page, navigate to root (which redirects to dashboard)
-        if (currentSession?.user?.id && location.pathname === '/login') {
-          navigate('/');
-        }
       }
     });
 
     return () => {
-      isMounted = false; // Cleanup flag
-      subscription.unsubscribe();
+      mounted = false;
+      subscription?.unsubscribe();
     };
-  }, [navigate, supabase]); // Dependencies: navigate and supabase client (stable)
+  }, [navigate]);
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">{t('loading')}</div>;
