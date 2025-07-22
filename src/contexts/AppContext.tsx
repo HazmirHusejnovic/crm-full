@@ -1,30 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useSession } from './SessionContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface AppSettings {
-  module_dashboard_enabled: boolean;
-  module_tasks_enabled: boolean;
-  module_tickets_enabled: boolean;
-  module_services_enabled: boolean;
-  module_products_enabled: boolean;
-  module_pos_enabled: boolean;
-  module_invoices_enabled: boolean;
-  module_reports_enabled: boolean;
-  module_users_enabled: boolean;
-  module_profile_enabled: boolean;
-  module_settings_enabled: boolean;
-  module_wiki_enabled: boolean;
-  module_chat_enabled: boolean;
-  module_permissions: Record<string, Record<string, string[]>> | null;
-  default_vat_rate: number;
-  default_currency_id: string | null;
-  company_name: string | null;
-  company_address: string | null;
-  company_email: string | null;
-  company_phone: string | null;
-  company_logo_url: string | null;
-  bank_account_details: string | null;
+  // Vaše postavke
 }
 
 interface AppContextType {
@@ -37,47 +16,13 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { supabase, session } = useSession();
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [loadingAppSettings, setLoadingAppSettings] = useState(true);
 
   const fetchGlobalAppData = useCallback(async () => {
-    setLoadingAppSettings(true);
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('*')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching global app settings:', settingsError.message);
-      toast.error('Failed to load global app settings.');
-    } else {
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    // Fetch user role only if a user is logged in
-    if (session?.user?.id) {
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching current user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-    } else {
-      setCurrentUserRole(null); // No session, no role
-    }
-
-    setLoadingAppSettings(false);
-  }, [supabase, session?.user?.id]); // Depend only on session.user.id for stability
+    // Vaša logika za dohvat podataka
+  }, []);
 
   useEffect(() => {
     fetchGlobalAppData();
@@ -93,7 +38,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 export const useAppContext = () => {
   const context = useContext(AppContext);
   if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppContextProvider');
+    throw new Error('useAppContext mora se koristiti unutar AppContextProvidera');
   }
   return context;
 };
