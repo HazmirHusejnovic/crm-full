@@ -13,6 +13,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface Profile {
   id: string;
@@ -35,6 +36,7 @@ const UserManagementPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
+  const { t } = useTranslation(); // Initialize useTranslation
   // usePermissions now gets its dependencies from useAppContext internally
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
@@ -155,8 +157,8 @@ const UserManagementPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
         </div>
       </div>
     );
@@ -165,7 +167,7 @@ const UserManagementPage: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">User Management</h1>
+        <h1 className="text-3xl font-bold">{t('user_management')}</h1>
         {canCreate('users') && (
           <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
             <DialogTrigger asChild>
@@ -208,7 +210,7 @@ const UserManagementPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {profiles.length === 0 ? (
-          <p className="col-span-full text-center text-gray-500">No user profiles found.</p>
+          <p className="col-span-full text-center text-gray-500">{t('no_users_found')}</p>
         ) : (
           profiles.map((profile) => (
             <Card key={profile.id} className="flex flex-col">

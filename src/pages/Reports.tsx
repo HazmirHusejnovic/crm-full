@@ -8,6 +8,7 @@ import TicketStatusChart from '@/components/TicketStatusChart';
 import InvoiceStatusChart from '@/components/InvoiceStatusChart';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface TaskStatusData {
   name: string;
@@ -35,6 +36,7 @@ const ReportsPage: React.FC = () => {
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
   const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]);
 
+  const { t } = useTranslation(); // Initialize useTranslation
   // usePermissions now gets its dependencies from useAppContext internally
   const { canViewModule } = usePermissions();
 
@@ -79,10 +81,10 @@ const ReportsPage: React.FC = () => {
         });
 
         const chartData: TaskStatusData[] = [
-          { name: 'Pending', count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
-          { name: 'In Progress', count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
-          { name: 'Completed', count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
-          { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
+          { name: t('tasks_status_pending'), count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
+          { name: t('tasks_status_in_progress'), count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
+          { name: t('tasks_status_completed'), count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
+          { name: t('tasks_status_cancelled'), count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
       }
@@ -157,7 +159,7 @@ const ReportsPage: React.FC = () => {
     };
 
     fetchReportData();
-  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
 
   const overallLoading = loadingAppSettings || loadingData;
 
@@ -173,8 +175,8 @@ const ReportsPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
         </div>
       </div>
     );
@@ -182,7 +184,13 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Reports & Analytics</h1>
+      <h1 className="text-3xl font-bold mb-6">{t('reports')}</h1>
+
+      {currentUserRole !== 'administrator' && (
+        <p className="text-sm text-muted-foreground mb-4 p-3 border rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+          {t('reports_filtered_by_permissions')}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TaskStatusChart data={taskStatusData} />

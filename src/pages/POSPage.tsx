@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface Product {
   id: string;
@@ -70,6 +71,7 @@ const POSPage: React.FC = () => {
   const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
   const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
 
+  const { t } = useTranslation(); // Initialize useTranslation
   // usePermissions now gets its dependencies from useAppContext internally
   const { canViewModule, canCreate } = usePermissions();
 
@@ -382,8 +384,8 @@ const POSPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
         </div>
       </div>
     );
@@ -408,7 +410,7 @@ const POSPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.length === 0 ? (
-            <p className="col-span-full text-center text-gray-500">No products found.</p>
+            <p className="col-span-full text-center text-gray-500">{t('no_products_found')}</p>
           ) : (
             products.map((product) => (
               <Card
@@ -426,7 +428,7 @@ const POSPage: React.FC = () => {
                     <p>Stock: <span className={`font-medium ${product.stock_quantity <= 5 && product.stock_quantity > 0 ? 'text-orange-500' : product.stock_quantity === 0 ? 'text-red-500' : 'text-green-600'}`}>{product.stock_quantity}</span></p>
                     <p>Category: <span className="font-medium">{product.product_categories?.name || 'N/A'}</span></p>
                     <p>SKU: <span className="font-medium">{product.sku || 'N/A'}</span></p>
-                    <p>VAT Rate: <span className="font-medium">{(item.vat_rate * 100).toFixed(2)}%</span></p>
+                    <p>VAT Rate: <span className="font-medium">{(product.vat_rate * 100).toFixed(2)}%</span></p>
                   </div>
                 </CardContent>
               </Card>

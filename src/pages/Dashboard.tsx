@@ -143,6 +143,12 @@ const DashboardPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">{t('dashboard')}</h1>
 
+      {currentUserRole !== 'administrator' && (
+        <p className="text-sm text-muted-foreground mb-4 p-3 border rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+          {t('dashboard_filtered_by_permissions')}
+        </p>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface ServiceCategory {
   id: string;
@@ -47,6 +48,7 @@ const ServicesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
 
+  const { t } = useTranslation(); // Initialize useTranslation
   // usePermissions now gets its dependencies from useAppContext internally
   const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
@@ -192,8 +194,8 @@ const ServicesPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
         </div>
       </div>
     );
@@ -201,7 +203,7 @@ const ServicesPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Services Management</h1>
+      <h1 className="text-3xl font-bold mb-6">{t('services')} Management</h1>
 
       <Tabs defaultValue="services" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -256,7 +258,7 @@ const ServicesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {services.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">No services found. Create one!</p>
+              <p className="col-span-full text-center text-gray-500">{t('no_services_found')}</p>
             ) : (
               services.map((service) => (
                 <Card key={service.id} className="flex flex-col">
@@ -315,7 +317,7 @@ const ServicesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">No categories found. Create one!</p>
+              <p className="col-span-full text-center text-gray-500">{t('no_wiki_categories_found')}</p>
             ) : (
               categories.map((category) => (
                 <Card key={category.id} className="flex flex-col">

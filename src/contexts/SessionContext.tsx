@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { createClient } from '@supabase/supabase-js';
 import { Session, SupabaseClient } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface SessionContextType {
   supabase: SupabaseClient;
@@ -19,6 +20,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation(); // Initialize useTranslation
 
   // Koristimo ref da pratimo ID trenutnog korisnika kako bismo spriječili ponovno renderovanje
   // ako se samo token osvježi, a korisnik ostane isti.
@@ -58,7 +60,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }, [navigate]); // Zavisnosti: navigate. Ovaj efekat se pokreće samo jednom pri montiranju.
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Učitavanje...</div>;
+    return <div className="flex items-center justify-center min-h-screen">{t('loading')}</div>;
   }
 
   return (
