@@ -150,7 +150,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <FormControl>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
                   <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
