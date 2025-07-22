@@ -6,9 +6,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import TicketStatusChart from '@/components/TicketStatusChart';
 import InvoiceStatusChart from '@/components/InvoiceStatusChart';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface TaskStatusData {
   name: string;
@@ -28,22 +26,69 @@ interface InvoiceStatusData {
   fill: string;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ReportsPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
+  const [loading, setLoading] = useState(true);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
   const [invoiceStatusData, setInvoiceStatusData] = useState<InvoiceStatusData[]>([]);
-
-  const { t } = useTranslation(); // Initialize useTranslation
-  // usePermissions now gets its dependencies from useAppContext internally
-  const { canViewModule } = usePermissions();
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    const fetchReportData = async () => {
-      setLoadingData(true); // Start loading page-specific data
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
 
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    if (!session || !appSettings || !currentUserRole) return; // Wait for all dependencies
+
+    if (!canViewModule('reports')) {
+      setLoading(false);
+      return; // Exit if not authorized
+    }
+
+    const fetchReportData = async () => {
+      setLoading(true);
       let hasError = false;
 
       // Fetch all tasks to count by status for the chart
@@ -69,10 +114,10 @@ const ReportsPage: React.FC = () => {
         });
 
         const chartData: TaskStatusData[] = [
-          { name: t('tasks_status_pending'), count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
-          { name: t('tasks_status_in_progress'), count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
-          { name: t('tasks_status_completed'), count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
-          { name: t('tasks_status_cancelled'), count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
+          { name: 'Pending', count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
+          { name: 'In Progress', count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
+          { name: 'Completed', count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
+          { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
       }
@@ -143,27 +188,13 @@ const ReportsPage: React.FC = () => {
         setInvoiceStatusData(invoiceChartData);
       }
 
-      setLoadingData(false);
+      setLoading(false);
     };
 
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
-
-    // If module is not viewable, set loading to false and return
-    if (!canViewModule('reports')) {
-      setLoadingData(false);
-      return; // Exit if not authorized
-    }
-
     fetchReportData();
-  }, [supabase, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -175,8 +206,8 @@ const ReportsPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
         </div>
       </div>
     );
@@ -184,13 +215,7 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">{t('reports')}</h1>
-
-      {currentUserRole !== 'administrator' && (
-        <p className="text-sm text-muted-foreground mb-4 p-3 border rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-          {t('reports_filtered_by_permissions')}
-        </p>
-      )}
+      <h1 className="text-3xl font-bold mb-6">Reports & Analytics</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TaskStatusChart data={taskStatusData} />

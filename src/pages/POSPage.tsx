@@ -14,9 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Product {
   id: string;
@@ -55,12 +53,15 @@ interface ExchangeRate {
   rate: number;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const POSPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
@@ -70,31 +71,64 @@ const POSPage: React.FC = () => {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
   const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
-
-  const { t } = useTranslation(); // Initialize useTranslation
-  // usePermissions now gets its dependencies from useAppContext internally
-  const { canViewModule, canCreate } = usePermissions();
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    const fetchAllData = async () => {
-      // Wait for global app settings and user role to load
-      if (loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(true); // Still loading global data
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
         return;
       }
 
-      // Now that global data is loaded, check permissions
-      if (!canViewModule('pos')) {
-        setLoadingData(false); // Not authorized, stop loading page data
-        return; // Exit if not authorized
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
       }
 
-      setLoadingData(true); // Start loading page-specific data
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions, default_currency_id')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
 
-      // Set app default currency from context
-      setAppDefaultCurrencyId(appSettings.default_currency_id || null);
-      if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
-        setSelectedCurrencyId(appSettings.default_currency_id || null);
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+        setAppDefaultCurrencyId(settingsData?.default_currency_id || null);
+        if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
+          setSelectedCurrencyId(settingsData?.default_currency_id || null);
+        }
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+        setLoading(false);
+        return;
+      }
+
+      if (!canViewModule('pos')) {
+        setLoading(false);
+        return; // Exit if not authorized
       }
 
       let hasError = false;
@@ -163,11 +197,11 @@ const POSPage: React.FC = () => {
         setClients(clientsData as ClientProfile[]);
       }
 
-      setLoadingData(false);
+      setLoading(false);
     };
 
-    fetchAllData();
-  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+    fetchData();
+  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole, canViewModule]);
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -370,9 +404,7 @@ const POSPage: React.FC = () => {
     // or trigger a print of the fiscal receipt.
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -384,8 +416,8 @@ const POSPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
         </div>
       </div>
     );
@@ -410,7 +442,7 @@ const POSPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.length === 0 ? (
-            <p className="col-span-full text-center text-gray-500">{t('no_products_found')}</p>
+            <p className="col-span-full text-center text-gray-500">No products found.</p>
           ) : (
             products.map((product) => (
               <Card

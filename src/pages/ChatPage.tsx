@@ -11,8 +11,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { PlusCircle } from 'lucide-react';
 import NewChatForm from '@/components/NewChatForm';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface Chat {
   id: string;
@@ -36,65 +34,62 @@ interface AppSettings {
 
 const ChatPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const [loadingData, setLoadingData] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<EnrichedChat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // State for app settings
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchConversations = async () => {
-    setLoadingData(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
-
-    if (!session?.user?.id) {
-      setLoadingData(false);
+    setLoading(true);
+    if (!session?.user?.id || !appSettings || !currentUserRole) {
+      setLoading(false);
       return;
     }
 
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      // Removed: setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      // Removed: setAppSettings(settingsData as AppSettings);
-    }
-
-    // Use the `currentUserRole` and `appSettings` from context directly,
-    // as they are updated by the AppContextProvider's useEffect.
-    // The local `currentRole` and `currentSettings` are for immediate use within this function.
-    if (loadingAppSettings || !appSettings || !currentUserRole) { // Use values from context
-      setLoadingData(true); // Still loading global data
-      return;
-    }
-
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('chat')) { // Koristimo canViewModule direktno
-      setLoadingData(false);
+    if (!canViewModule('chat')) {
+      setLoading(false);
       return;
     }
 
@@ -107,14 +102,14 @@ const ChatPage: React.FC = () => {
     if (userParticipantsError) {
       toast.error('Failed to load user chat memberships: ' + userParticipantsError.message);
       setConversations([]);
-      setLoadingData(false);
+      setLoading(false);
       return;
     }
 
     const chatIds = userChatParticipants.map(p => p.chat_id);
     if (chatIds.length === 0) {
       setConversations([]);
-      setLoadingData(false);
+      setLoading(false);
       return;
     }
 
@@ -156,7 +151,7 @@ const ChatPage: React.FC = () => {
         setSelectedChatId(null);
       }
     }
-    setLoadingData(false);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -191,7 +186,7 @@ const ChatPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, session, selectedChatId, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, session, selectedChatId, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);
@@ -199,9 +194,7 @@ const ChatPage: React.FC = () => {
     setSelectedChatId(newChatId);
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

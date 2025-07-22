@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Profile {
   id: string;
@@ -13,39 +12,72 @@ interface Profile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
-  default_currency_id: string | null; // Add this field as it's used in ProfileForm
+}
+
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
 }
 
 const ProfilePage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
-
-  // usePermissions now gets its dependencies from useAppContext internally
-  const { canViewModule } = usePermissions();
+  const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      // Wait for global app settings and user role to load
-      if (loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(true); // Still loading global data
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
         return;
       }
 
-      // Now that global data is loaded, check permissions
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!session?.user?.id || !appSettings || !currentUserRole) {
+        setLoading(false);
+        return;
+      }
+
       if (!canViewModule('profile')) {
-        setLoadingData(false); // Not authorized, stop loading page data
+        setLoading(false);
         return;
       }
 
-      setLoadingData(true); // Start loading page-specific data
-
-      if (!session?.user?.id) {
-        setLoadingData(false);
-        return;
-      }
-
+      setLoading(true);
       const { data, error } = await supabase
         .from('profiles_with_auth_emails') // Use the new view
         .select(`
@@ -53,9 +85,8 @@ const ProfilePage: React.FC = () => {
           first_name,
           last_name,
           role,
-          email,
-          default_currency_id
-        `) // Select email and default_currency_id directly
+          email
+        `) // Select email directly
         .eq('id', session.user.id)
         .single();
 
@@ -67,20 +98,19 @@ const ProfilePage: React.FC = () => {
           first_name: data.first_name,
           last_name: data.last_name,
           role: data.role,
-          email: data.email || 'N/A',
-          default_currency_id: data.default_currency_id,
+          email: data.email || 'N/A', // Access email directly
         });
       }
-      setLoadingData(false);
+      setLoading(false);
     };
 
-    fetchProfileData();
-  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+    fetchProfile();
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]);
 
   const handleFormSuccess = () => {
     // Re-fetch profile to show updated data
     if (session?.user?.id) {
-      setLoadingData(true);
+      setLoading(true);
       supabase
         .from('profiles_with_auth_emails') // Use the new view
         .select(`
@@ -88,9 +118,8 @@ const ProfilePage: React.FC = () => {
           first_name,
           last_name,
           role,
-          email,
-          default_currency_id
-        `) // Select email and default_currency_id directly
+          email
+        `) // Select email directly
         .eq('id', session.user.id)
         .single()
         .then(({ data, error }) => {
@@ -102,18 +131,15 @@ const ProfilePage: React.FC = () => {
               first_name: data.first_name,
               last_name: data.last_name,
               role: data.role,
-              email: data.email || 'N/A',
-              default_currency_id: data.default_currency_id,
+              email: data.email || 'N/A', // Access email directly
             });
           }
-          setLoadingData(false);
+          setLoading(false);
         });
     }
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

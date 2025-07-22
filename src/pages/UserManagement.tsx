@@ -11,9 +11,7 @@ import { toast } from 'sonner';
 import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Profile {
   id: string;
@@ -24,28 +22,72 @@ interface Profile {
   default_currency_id: string | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const UserManagementPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
+  const [loading, setLoading] = useState(true);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | undefined>(undefined);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
-  const { t } = useTranslation(); // Initialize useTranslation
-  // usePermissions now gets its dependencies from useAppContext internally
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchProfiles = async () => {
-    setLoadingData(true); // Start loading for profiles specific data
+    setLoading(true);
+    if (!session || !appSettings || !currentUserRole) { // Wait for all dependencies
+      setLoading(false);
+      return;
+    }
 
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
     if (!canViewModule('users')) {
-      setLoadingData(false); // Not authorized, stop loading page data
+      setLoading(false);
       return;
     }
 
@@ -72,20 +114,17 @@ const UserManagementPage: React.FC = () => {
 
     if (error) {
       toast.error('Failed to load profiles: ' + error.message);
-    } else {
-      setProfiles(data as Profile[]);
+      setLoading(false);
+      return;
     }
-    setLoadingData(false);
+
+    setProfiles(data as Profile[]);
+    setLoading(false);
   };
 
   useEffect(() => {
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
     fetchProfiles();
-  }, [supabase, searchTerm, filterRole, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, session, searchTerm, filterRole, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
@@ -140,9 +179,7 @@ const UserManagementPage: React.FC = () => {
     fetchProfiles();
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -154,8 +191,8 @@ const UserManagementPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
         </div>
       </div>
     );
@@ -164,7 +201,7 @@ const UserManagementPage: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('user_management')}</h1>
+        <h1 className="text-3xl font-bold">User Management</h1>
         {canCreate('users') && (
           <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
             <DialogTrigger asChild>
@@ -207,7 +244,7 @@ const UserManagementPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {profiles.length === 0 ? (
-          <p className="col-span-full text-center text-gray-500">{t('no_users_found')}</p>
+          <p className="col-span-full text-center text-gray-500">No user profiles found.</p>
         ) : (
           profiles.map((profile) => (
             <Card key={profile.id} className="flex flex-col">

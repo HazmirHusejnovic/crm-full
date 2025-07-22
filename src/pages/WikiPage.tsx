@@ -15,7 +15,6 @@ import WikiArticleForm from '@/components/WikiArticleForm';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface WikiCategory {
   id: string;
@@ -56,11 +55,11 @@ interface AppSettings {
 
 const WikiPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [categories, setCategories] = useState<WikiCategory[]>([]);
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [articleVersions, setArticleVersions] = useState<WikiArticleVersion[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Consolidated loading state
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingArticles, setLoadingArticles] = useState(true);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isArticleFormOpen, setIsArticleFormOpen] = useState(false);
@@ -72,33 +71,76 @@ const WikiPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [filterVisibility, setFilterVisibility] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingArticles(false);
+        return;
+      }
 
-  const fetchAllData = async () => {
-    setLoadingData(true);
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
 
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('wiki')) { // Koristimo canViewModule direktno
-      setLoadingData(false);
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
+      setLoadingCategories(false);
       return;
     }
-
-    // Fetch categories
-    const { data: categoriesData, error: categoriesError } = await supabase
+    const { data, error } = await supabase
       .from('wiki_categories')
       .select('*')
       .order('name', { ascending: true });
 
-    if (categoriesError) {
-      toast.error('Failed to load wiki categories: ' + categoriesError.message);
+    if (error) {
+      toast.error('Failed to load wiki categories: ' + error.message);
     } else {
-      setCategories(categoriesData as WikiCategory[]);
+      setCategories(data as WikiCategory[]);
     }
+    setLoadingCategories(false);
+  };
 
-    // Fetch articles
-    let articleQuery = supabase
+  const fetchArticles = async () => {
+    setLoadingArticles(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('wiki')) {
+      setLoadingArticles(false);
+      return;
+    }
+    let query = supabase
       .from('wiki_articles_with_details')
       .select(`
         id,
@@ -118,35 +160,26 @@ const WikiPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      articleQuery = articleQuery.ilike('title', `%${searchTerm}%`);
+      query = query.ilike('title', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      articleQuery = articleQuery.eq('category_id', filterCategoryId);
+      query = query.eq('category_id', filterCategoryId);
     }
 
     if (filterVisibility !== 'all') {
-      articleQuery = articleQuery.eq('visibility', filterVisibility);
+      query = query.eq('visibility', filterVisibility);
     }
 
-    const { data: articlesData, error: articlesError } = await articleQuery.order('title', { ascending: true });
+    const { data, error } = await query.order('title', { ascending: true });
 
-    if (articlesError) {
-      toast.error('Failed to load wiki articles: ' + articlesError.message);
+    if (error) {
+      toast.error('Failed to load wiki articles: ' + error.message);
     } else {
-      setArticles(articlesData as WikiArticle[]);
+      setArticles(data as WikiArticle[]);
     }
-    setLoadingData(false);
+    setLoadingArticles(false);
   };
-
-  useEffect(() => {
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
-    fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const fetchArticleVersions = async (articleId: string) => {
     setLoadingVersions(true);
@@ -170,6 +203,14 @@ const WikiPage: React.FC = () => {
     setLoadingVersions(false);
   };
 
+  useEffect(() => {
+    fetchCategories();
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+
+  useEffect(() => {
+    fetchArticles();
+  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
     setIsCategoryFormOpen(true);
@@ -192,7 +233,8 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to delete category: ' + error.message);
     } else {
       toast.success('Category deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchCategories();
+      fetchArticles();
     }
   };
 
@@ -229,23 +271,21 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to delete article: ' + error.message);
     } else {
       toast.success('Article deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchArticles();
     }
   };
 
   const handleCategoryFormSuccess = () => {
     setIsCategoryFormOpen(false);
-    fetchAllData();
+    fetchCategories();
   };
 
   const handleArticleFormSuccess = () => {
     setIsArticleFormOpen(false);
-    fetchAllData();
+    fetchArticles();
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loadingCategories || loadingArticles) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -454,7 +494,7 @@ const WikiPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">{t('no_wiki_categories_found')}</p>
+              <p className="col-span-full text-center text-gray-500">No categories found. Create one!</p>
             ) : (
               categories.map((category) => (
                 <Card key={category.id} className="flex flex-col">

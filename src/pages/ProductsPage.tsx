@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } => 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +13,6 @@ import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface ProductCategory {
   id: string;
@@ -42,44 +40,86 @@ interface AppSettings {
 
 const ProductsPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Consolidated loading state
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | undefined>(undefined);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  const { t } = useTranslation(); // Initialize useTranslation
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingProducts(false);
+        return;
+      }
 
-  const fetchAllData = async () => {
-    setLoadingData(true);
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
 
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('products')) { // Koristimo canViewModule direktno
-      setLoadingData(false);
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
+      setLoadingCategories(false);
       return;
     }
-
-    // Fetch categories
-    const { data: categoriesData, error: categoriesError } = await supabase
+    const { data, error } = await supabase
       .from('product_categories')
       .select('*')
       .order('name', { ascending: true });
 
-    if (categoriesError) {
-      toast.error('Failed to load product categories: ' + categoriesError.message);
+    if (error) {
+      toast.error('Failed to load product categories: ' + error.message);
     } else {
-      setCategories(categoriesData as ProductCategory[]);
+      setCategories(data as ProductCategory[]);
     }
+    setLoadingCategories(false);
+  };
 
-    // Fetch products
-    let productQuery = supabase
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('products')) {
+      setLoadingProducts(false);
+      return;
+    }
+    let query = supabase
       .from('products')
       .select(`
         id,
@@ -95,31 +135,30 @@ const ProductsPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      productQuery = productQuery.ilike('name', `%${searchTerm}%`);
+      query = query.ilike('name', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      productQuery = productQuery.eq('category_id', filterCategoryId);
+      query = query.eq('category_id', filterCategoryId);
     }
 
-    const { data: productsData, error: productsError } = await productQuery.order('name', { ascending: true });
+    const { data, error } = await query.order('name', { ascending: true });
 
-    if (productsError) {
-      toast.error('Failed to load products: ' + productsError.message);
+    if (error) {
+      toast.error('Failed to load products: ' + error.message);
     } else {
-      setProducts(productsData as Product[]);
+      setProducts(data as Product[]);
     }
-    setLoadingData(false);
+    setLoadingProducts(false);
   };
 
   useEffect(() => {
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
-    fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+    fetchCategories();
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+
+  useEffect(() => {
+    fetchProducts();
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -143,7 +182,8 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to delete category: ' + error.message);
     } else {
       toast.success('Category deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchCategories();
+      fetchProducts(); // Refresh products as well
     }
   };
 
@@ -169,23 +209,21 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to delete product: ' + error.message);
     } else {
       toast.success('Product deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchProducts();
     }
   };
 
   const handleCategoryFormSuccess = () => {
     setIsCategoryFormOpen(false);
-    fetchAllData();
+    fetchCategories();
   };
 
   const handleProductFormSuccess = () => {
     setIsProductFormOpen(false);
-    fetchAllData();
+    fetchProducts();
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loadingCategories || loadingProducts) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -197,8 +235,8 @@ const ProductsPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
         </div>
       </div>
     );
@@ -206,7 +244,7 @@ const ProductsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">{t('products')} & Inventory Management</h1>
+      <h1 className="text-3xl font-bold mb-6">Product & Inventory Management</h1>
 
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -261,7 +299,7 @@ const ProductsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {products.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">{t('no_products_found')}</p>
+              <p className="col-span-full text-center text-gray-500">No products found. Create one!</p>
             ) : (
               products.map((product) => (
                 <Card key={product.id} className="flex flex-col">
@@ -321,7 +359,7 @@ const ProductsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">{t('no_wiki_categories_found')}</p>
+              <p className="col-span-full text-center text-gray-500">No categories found. Create one!</p>
             ) : (
               categories.map((category) => (
                 <Card key={category.id} className="flex flex-col">

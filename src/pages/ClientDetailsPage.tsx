@@ -11,8 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
 import InvoiceForm from '@/components/InvoiceForm';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext';
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface ClientProfile {
   id: string;
@@ -66,6 +65,10 @@ interface ClientInvoice {
   creator_profile_details: CreatorProfileDetails | null;
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ClientDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -74,35 +77,68 @@ const ClientDetailsPage: React.FC = () => {
   const [clientTasks, setClientTasks] = useState<ClientTask[]>([]);
   const [clientTickets, setClientTickets] = useState<ClientTicket[]>([]);
   const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
+  const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
+  // State for dialogs
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
 
-  const { canViewModule, canCreate } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user role
+      const { data: userRoleData, error: userRoleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (userRoleError) {
+        console.error('Error fetching current user role:', userRoleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(userRoleData.role);
+      }
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchData = async () => {
-    setLoadingData(true);
-
-    if (!session?.user?.id || !id) {
-      setLoadingData(false);
+    if (!session?.user?.id || !id || !appSettings || !currentUserRole) {
+      setLoading(false);
       return;
     }
 
-    // Wait for global app settings and user role to load from AppContext
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
+    if (!canViewModule('users')) { // Assuming client details page is part of user management module
+      setLoading(false);
       return;
     }
 
-    // Now that global data is loaded, check permissions
-    if (!canViewModule('users')) {
-      setLoadingData(false);
-      return;
-    }
-
+    setLoading(true);
     let hasError = false;
 
     // Fetch client profile
@@ -141,7 +177,6 @@ const ClientDetailsPage: React.FC = () => {
       .select(`
           id,
           title,
-          description,
           status,
           due_date,
           created_at,
@@ -166,7 +201,6 @@ const ClientDetailsPage: React.FC = () => {
       .select(`
           id,
           subject,
-          description,
           status,
           priority,
           created_at,
@@ -229,17 +263,12 @@ const ClientDetailsPage: React.FC = () => {
       setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
     }
 
-    setLoadingData(false);
+    setLoading(false);
   };
 
   useEffect(() => {
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
     fetchData();
-  }, [id, supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]);
+  }, [id, supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -275,9 +304,7 @@ const ClientDetailsPage: React.FC = () => {
     fetchData(); // Re-fetch all data to update lists
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -285,7 +312,7 @@ const ClientDetailsPage: React.FC = () => {
     );
   }
 
-  if (!canViewModule('users')) {
+  if (!canViewModule('users')) { // Assuming client details page is part of user management module
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -475,7 +502,7 @@ const ClientDetailsPage: React.FC = () => {
                       {task.due_date && (
                         <p>Due Date: {format(new Date(task.due_date), 'PPP')}</p>
                       )}
-                      <p>Created At: {format(new Date(task.created_at), 'PPP p')}</p>
+                      <p>Created At: {format(new Date(task.created_at), 'PPP')}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -510,7 +537,7 @@ const ClientDetailsPage: React.FC = () => {
                       {ticket.linked_task_id && (
                         <p>Linked Task: {ticket.tasks?.title}</p>
                       )}
-                      <p>Created At: {format(new Date(ticket.created_at), 'PPP p')}</p>
+                      <p>Created At: {format(new Date(ticket.created_at), 'PPP')}</p>
                     </CardContent>
                   </Card>
                 ))}

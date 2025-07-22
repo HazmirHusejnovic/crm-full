@@ -11,8 +11,6 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface AppSettings {
   company_name: string | null;
@@ -41,23 +39,46 @@ interface AppSettings {
 
 const SettingsPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings, refetchAppSettings } = useAppContext(); // Get refetchAppSettings
-  const [loadingData, setLoadingData] = useState(true); // This state might become redundant or need re-evaluation
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { canViewModule } = usePermissions();
+  const fetchAppSettings = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('*')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
 
-  // The local fetchAppSettingsAndRole is no longer needed as AppContext handles global fetching
-  // and provides refetchAppSettings for manual triggers.
-  useEffect(() => {
-    // This useEffect is now primarily for initial loading state management within SettingsPage
-    // and reacting to global loading state.
-    if (!loadingAppSettings && appSettings && currentUserRole) {
-      setLoadingData(false); // Data is loaded from context
+    if (error) {
+      toast.error('Failed to load application settings: ' + error.message);
+      setAppSettings(null);
     } else {
-      setLoadingData(true); // Still waiting for context to load
+      setAppSettings(data as AppSettings);
     }
-  }, [loadingAppSettings, appSettings, currentUserRole]);
+    setLoading(false);
+  };
 
+  useEffect(() => {
+    if (session) {
+      const fetchUserRole = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Error fetching user role:', error.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(data.role);
+        }
+      };
+      fetchUserRole();
+      fetchAppSettings();
+    }
+  }, [supabase, session]);
 
   const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
     if (!appSettings) return;
@@ -71,18 +92,11 @@ const SettingsPage: React.FC = () => {
       toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
     } else {
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
-      refetchAppSettings(); // Trigger global app settings re-fetch
+      setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
     }
   };
 
-  // Update onSuccess callbacks for forms to use refetchAppSettings
-  const handleFormSuccess = () => {
-    refetchAppSettings();
-  };
-
-  const overallLoading = loadingAppSettings || loadingData; // Combine loading states
-
-  if (overallLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -90,7 +104,7 @@ const SettingsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') { // Settings page is only for administrators
+  if (currentUserRole !== 'administrator') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -129,7 +143,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Company Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <CompanySettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
+                <CompanySettingsForm initialData={appSettings} onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
 
@@ -138,7 +152,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Financial Defaults</CardTitle>
               </CardHeader>
               <CardContent>
-                <FinancialSettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
+                <FinancialSettingsForm initialData={appSettings} onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
 
@@ -179,7 +193,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Currency & Exchange Rate Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <CurrencySettingsForm onSuccess={handleFormSuccess} />
+                <CurrencySettingsForm onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
 
@@ -188,7 +202,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Module Permissions</CardTitle>
               </CardHeader>
               <CardContent>
-                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={handleFormSuccess} />
+                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
           </>

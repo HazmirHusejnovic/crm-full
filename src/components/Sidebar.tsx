@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useSession } from '@/contexts/SessionContext';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ListTodo,
@@ -23,9 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext';
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { usePermissions } from '@/hooks/usePermissions'; // Import the new hook
 
 interface NavLinkProps {
   to: string;
@@ -55,13 +54,66 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isActive, isVi
   );
 };
 
-const Sidebar: React.FC = () => {
-  const { supabase } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
-  const location = useLocation();
-  const { t } = useTranslation(); // Initialize useTranslation
+interface AppSettings {
+  module_dashboard_enabled: boolean;
+  module_tasks_enabled: boolean;
+  module_tickets_enabled: boolean;
+  module_services_enabled: boolean;
+  module_products_enabled: boolean;
+  module_pos_enabled: boolean;
+  module_invoices_enabled: boolean;
+  module_reports_enabled: boolean;
+  module_users_enabled: boolean;
+  module_profile_enabled: boolean;
+  module_settings_enabled: boolean;
+  module_wiki_enabled: boolean;
+  module_chat_enabled: boolean;
+  module_permissions: Record<string, Record<string, string[]>> | null; // New field
+}
 
-  const { canViewModule } = usePermissions();
+const Sidebar: React.FC = () => {
+  const { supabase, session } = useSession();
+  const location = useLocation();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      setLoadingSettings(true);
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+
+      // Fetch user role
+      if (session) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (roleError) {
+          console.error('Error fetching user role:', roleError.message);
+          toast.error('Failed to fetch user role.');
+        } else {
+          setUserRole(roleData.role);
+        }
+      }
+      setLoadingSettings(false);
+    };
+
+    fetchSettingsAndRole();
+  }, [session, supabase]);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -72,7 +124,10 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  if (loadingAppSettings) {
+  // Use the new usePermissions hook
+  const { canViewModule } = usePermissions(appSettings, userRole);
+
+  if (loadingSettings) {
     return (
       <div className="flex h-full max-h-screen flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground items-center justify-center">
         <LoadingSpinner size={32} />
@@ -88,101 +143,101 @@ const Sidebar: React.FC = () => {
       <Separator className="bg-sidebar-border" />
       <ScrollArea className="flex-grow py-4">
         <div className="px-3 py-2">
-          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{t('modules')}</h2>
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Modules</h2>
           <div className="space-y-1">
             <NavLink
               to="/dashboard"
               icon={LayoutDashboard}
-              label={t('dashboard')}
+              label="Dashboard"
               isActive={location.pathname === '/dashboard'}
               isVisible={canViewModule('dashboard')}
             />
             <NavLink
               to="/tasks"
               icon={ListTodo}
-              label={t('tasks')}
+              label="Tasks"
               isActive={location.pathname === '/tasks'}
               isVisible={canViewModule('tasks')}
             />
             <NavLink
               to="/tickets"
               icon={Ticket}
-              label={t('tickets')}
+              label="Tickets"
               isActive={location.pathname === '/tickets'}
               isVisible={canViewModule('tickets')}
             />
             <NavLink
               to="/services"
               icon={Briefcase}
-              label={t('services')}
+              label="Services"
               isActive={location.pathname === '/services'}
               isVisible={canViewModule('services')}
             />
             <NavLink
               to="/products"
               icon={Package}
-              label={t('products')}
+              label="Products"
               isActive={location.pathname === '/products'}
               isVisible={canViewModule('products')}
             />
             <NavLink
               to="/pos"
               icon={ShoppingCart}
-              label={t('pos')}
+              label="POS"
               isActive={location.pathname === '/pos'}
               isVisible={canViewModule('pos')}
             />
             <NavLink
               to="/invoices"
               icon={ReceiptText}
-              label={t('invoices')}
+              label="Invoices"
               isActive={location.pathname === '/invoices'}
               isVisible={canViewModule('invoices')}
             />
             <NavLink
               to="/reports"
               icon={BarChart3}
-              label={t('reports')}
+              label="Reports"
               isActive={location.pathname === '/reports'}
               isVisible={canViewModule('reports')}
             />
             <NavLink
               to="/wiki"
               icon={BookOpen}
-              label={t('wiki')}
+              label="Wiki"
               isActive={location.pathname === '/wiki'}
               isVisible={canViewModule('wiki')}
             />
             <NavLink
               to="/chat"
               icon={MessageSquare}
-              label={t('chat')}
+              label="Chat"
               isActive={location.pathname === '/chat'}
               isVisible={canViewModule('chat')}
             />
             <NavLink
               to="/users"
               icon={Users}
-              label={t('user_management')}
+              label="User Management"
               isActive={location.pathname === '/users'}
               isVisible={canViewModule('users')}
             />
           </div>
         </div>
         <div className="px-3 py-2 mt-4">
-          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{t('account')}</h2>
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Account</h2>
           <div className="space-y-1">
             <NavLink
               to="/profile"
               icon={User}
-              label={t('my_profile')}
+              label="My Profile"
               isActive={location.pathname === '/profile'}
               isVisible={canViewModule('profile')}
             />
             <NavLink
               to="/settings"
               icon={Settings}
-              label={t('settings')}
+              label="Settings"
               isActive={location.pathname === '/settings'}
               isVisible={canViewModule('settings')}
             />
@@ -197,7 +252,7 @@ const Sidebar: React.FC = () => {
           onClick={handleLogout}
         >
           <LogOut className="mr-2 h-4 w-4" />
-          {t('logout')}
+          Logout
         </Button>
       </div>
     </div>

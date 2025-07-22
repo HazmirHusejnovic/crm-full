@@ -12,9 +12,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface ServiceCategory {
   id: string;
@@ -35,46 +33,92 @@ interface Service {
   service_categories: { name: string } | null; // For category name
 }
 
+interface AppSettings {
+  module_permissions: Record<string, Record<string, string[]>> | null;
+}
+
 const ServicesPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingServices, setLoadingServices] = useState(true);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | undefined>(undefined);
   const [editingService, setEditingService] = useState<Service | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  const { t } = useTranslation(); // Initialize useTranslation
-  // usePermissions now gets its dependencies from useAppContext internally
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
+  useEffect(() => {
+    const fetchSettingsAndRole = async () => {
+      if (!session) {
+        setLoadingCategories(false);
+        setLoadingServices(false);
+        return;
+      }
 
-  const fetchAllData = async () => {
-    setLoadingData(true); // Start loading for all data on this page
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (roleError) {
+        console.error('Error fetching user role:', roleError.message);
+        toast.error('Failed to fetch your user role.');
+      } else {
+        setCurrentUserRole(roleData.role);
+      }
 
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('services')) { // Koristimo canViewModule direktno
-      setLoadingData(false);
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('module_permissions')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching app settings:', settingsError.message);
+        toast.error('Failed to load app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+    };
+
+    fetchSettingsAndRole();
+  }, [supabase, session]);
+
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('services')) {
+      setLoadingCategories(false);
       return;
     }
-
-    // Fetch categories
-    const { data: categoriesData, error: categoriesError } = await supabase
+    const { data, error } = await supabase
       .from('service_categories')
       .select('*')
       .order('name', { ascending: true });
 
-    if (categoriesError) {
-      toast.error('Failed to load service categories: ' + categoriesError.message);
+    if (error) {
+      toast.error('Failed to load service categories: ' + error.message);
     } else {
-      setCategories(categoriesData as ServiceCategory[]);
+      setCategories(data as ServiceCategory[]);
     }
+    setLoadingCategories(false);
+  };
 
-    // Fetch services
-    let serviceQuery = supabase
+  const fetchServices = async () => {
+    setLoadingServices(true);
+    if (!session || !appSettings || !currentUserRole || !canViewModule('services')) {
+      setLoadingServices(false);
+      return;
+    }
+    let query = supabase
       .from('services')
       .select(`
         id,
@@ -89,31 +133,30 @@ const ServicesPage: React.FC = () => {
       `);
 
     if (searchTerm) {
-      serviceQuery = serviceQuery.ilike('name', `%${searchTerm}%`);
+      query = query.ilike('name', `%${searchTerm}%`);
     }
 
     if (filterCategoryId !== 'all') {
-      serviceQuery = serviceQuery.eq('category_id', filterCategoryId);
+      query = query.eq('category_id', filterCategoryId);
     }
 
-    const { data: servicesData, error: servicesError } = await serviceQuery.order('name', { ascending: true });
+    const { data, error } = await query.order('name', { ascending: true });
 
-    if (servicesError) {
-      toast.error('Failed to load services: ' + servicesError.message);
+    if (error) {
+      toast.error('Failed to load services: ' + error.message);
     } else {
-      setServices(servicesData as Service[]);
+      setServices(data as Service[]);
     }
-    setLoadingData(false);
+    setLoadingServices(false);
   };
 
   useEffect(() => {
-    // Only proceed if global app settings and user role are loaded and available
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Keep local loading state true while global context is loading
-      return;
-    }
-    fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+    fetchCategories();
+  }, [supabase, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+
+  useEffect(() => {
+    fetchServices();
+  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -137,7 +180,8 @@ const ServicesPage: React.FC = () => {
       toast.error('Failed to delete category: ' + error.message);
     } else {
       toast.success('Category deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchCategories();
+      fetchServices(); // Refresh services as well
     }
   };
 
@@ -163,23 +207,21 @@ const ServicesPage: React.FC = () => {
       toast.error('Failed to delete service: ' + error.message);
     } else {
       toast.success('Service deleted successfully!');
-      fetchAllData(); // Re-fetch all data
+      fetchServices();
     }
   };
 
   const handleCategoryFormSuccess = () => {
     setIsCategoryFormOpen(false);
-    fetchAllData();
+    fetchCategories();
   };
 
   const handleServiceFormSuccess = () => {
     setIsServiceFormOpen(false);
-    fetchAllData();
+    fetchServices();
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
-
-  if (overallLoading) {
+  if (loadingCategories || loadingServices) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -191,8 +233,8 @@ const ServicesPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
         </div>
       </div>
     );
@@ -200,7 +242,7 @@ const ServicesPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">{t('services')} Management</h1>
+      <h1 className="text-3xl font-bold mb-6">Services Management</h1>
 
       <Tabs defaultValue="services" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -255,7 +297,7 @@ const ServicesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {services.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">{t('no_services_found')}</p>
+              <p className="col-span-full text-center text-gray-500">No services found. Create one!</p>
             ) : (
               services.map((service) => (
                 <Card key={service.id} className="flex flex-col">
@@ -314,7 +356,7 @@ const ServicesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">{t('no_wiki_categories_found')}</p>
+              <p className="col-span-full text-center text-gray-500">No categories found. Create one!</p>
             ) : (
               categories.map((category) => (
                 <Card key={category.id} className="flex flex-col">
