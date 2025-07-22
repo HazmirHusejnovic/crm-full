@@ -114,7 +114,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Company Name</FormLabel>
               <FormControl>
-                <Input placeholder="Your Company Name" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="Your Company Name" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -127,7 +127,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Company Address</FormLabel>
               <FormControl>
-                <Input placeholder="123 Business Rd, City, Country" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="123 Business Rd, City, Country" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -140,7 +140,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Company Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="info@yourcompany.com" {...field} value={field.value || ''} />
+                <Input id={field.name} type="email" placeholder="info@yourcompany.com" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -153,7 +153,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Company Phone</FormLabel>
               <FormControl>
-                <Input placeholder="+1234567890" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="+1234567890" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -190,7 +190,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
                         <UploadCloud className="h-8 w-8 text-muted-foreground" />
                       )}
                       <Input
-                        id="logo-upload"
+                        id="logo-upload" // This ID is explicitly set and matched by the label's htmlFor
                         type="file"
                         accept="image/*"
                         className="hidden"
@@ -216,7 +216,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Bank Account Details</FormLabel>
               <FormControl>
-                <Textarea placeholder="Bank Name, Account Number, SWIFT/BIC, IBAN" {...field} value={field.value || ''} />
+                <Textarea id={field.name} placeholder="Bank Name, Account Number, SWIFT/BIC, IBAN" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

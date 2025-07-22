@@ -63,7 +63,7 @@ const FinancialSettingsForm: React.FC<FinancialSettingsFormProps> = ({ initialDa
             <FormItem>
               <FormLabel>Default VAT Rate (e.g., 0.17 for 17%)</FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input id={field.name} type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>

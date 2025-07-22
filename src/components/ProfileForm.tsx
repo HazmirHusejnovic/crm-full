@@ -103,7 +103,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
         <FormItem>
           <FormLabel>Email</FormLabel>
           <FormControl>
-            <Input value={initialData.email} disabled className="bg-gray-100 dark:bg-gray-700" />
+            <Input id="email" value={initialData.email} disabled className="bg-gray-100 dark:bg-gray-700" />
           </FormControl>
         </FormItem>
         <FormField
@@ -113,7 +113,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>First Name</FormLabel>
               <FormControl>
-                <Input placeholder="First Name" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="First Name" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -126,7 +126,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Last Name</FormLabel>
               <FormControl>
-                <Input placeholder="Last Name" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="Last Name" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -140,7 +140,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Role</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                 </FormControl>
@@ -162,7 +162,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Default Currency</FormLabel>
               <Select onValueChange={field.onChange} value={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select default currency" />
                   </SelectTrigger>
                 </FormControl>

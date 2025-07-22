@@ -125,7 +125,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Title</FormLabel>
               <FormControl>
-                <Input placeholder="Task title" {...field} />
+                <Input id={field.name} placeholder="Task title" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -138,7 +138,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Task description" {...field} />
+                <Textarea id={field.name} placeholder="Task description" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -152,7 +152,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
                 </FormControl>
@@ -175,7 +175,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Assigned To</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a worker" />
                   </SelectTrigger>
                 </FormControl>
@@ -199,7 +199,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Due Date</FormLabel>
               <FormControl>
-                <Input type="date" {...field} />
+                <Input id={field.name} type="date" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

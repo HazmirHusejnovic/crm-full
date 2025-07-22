@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react'; // Removed useState as local loadingData is now derived from context
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -6,7 +6,7 @@ import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
 import CurrencySettingsForm from '@/components/CurrencySettingsForm';
 import ModulePermissionsForm from '@/components/ModulePermissionsForm'; // Import new component
-import { useSession } from '@/contexts/SessionContext';
+import { useSession } from '@/contexts/SessionContext'; // Still needed for supabase client
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
@@ -40,56 +40,14 @@ interface AppSettings {
 }
 
 const SettingsPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { supabase } = useSession(); // Only need supabase for direct updates
   const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
-  const [loadingData, setLoadingData] = useState(true);
 
   // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions();
 
-  const fetchAppSettingsAndRole = async () => {
-    setLoadingData(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
-
-    if (!session) {
-      setLoadingData(false);
-      return;
-    }
-
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      // Removed: setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('*')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      toast.error('Failed to load application settings: ' + settingsError.message);
-    } else {
-      currentSettings = settingsData as AppSettings;
-      // Removed: setAppSettings(settingsData as AppSettings);
-    }
-    setLoadingData(false);
-  };
-
-  useEffect(() => {
-    fetchAppSettingsAndRole();
-  }, [supabase, session]); // Dependencies are just supabase and session.
+  // Removed fetchAppSettingsAndRole and its useEffect.
+  // AppContext is responsible for fetching and providing appSettings and currentUserRole.
 
   const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
     if (!appSettings) return;
@@ -103,17 +61,23 @@ const SettingsPage: React.FC = () => {
       toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
     } else {
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
-      // Since appSettings is from context, we need to trigger a re-fetch or rely on context update
-      // For now, we'll just update the local state for immediate feedback,
-      // and the context's useEffect will eventually re-fetch and sync.
-      // A more robust solution might involve a callback from AppContext to update its state.
-      setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
+      // Removed local setAppSettings. AppContext's useEffect will re-fetch.
     }
   };
 
-  const overallLoading = loadingAppSettings || loadingData;
+  // The onSuccess callbacks for the forms will now simply trigger a re-render of the SettingsPage
+  // (if needed, by passing a function that updates a local state, or just relying on AppContext's reactivity).
+  // For now, they will just call onSuccess?.() which is sufficient as AppContext's useEffect
+  // listens to supabase and session changes, and will re-fetch app settings.
+  const handleFormSuccess = () => {
+    // This function can be used to trigger a re-render if needed,
+    // but for app settings, AppContext's useEffect should handle it.
+    // For example, if you had a local state that needed to be refreshed:
+    // setSomeLocalState(prev => !prev);
+  };
 
-  if (overallLoading) {
+  // Use loadingAppSettings directly for overall loading
+  if (loadingAppSettings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -160,7 +124,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Company Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <CompanySettingsForm initialData={appSettings} onSuccess={fetchAppSettingsAndRole} />
+                <CompanySettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
               </CardContent>
             </Card>
 
@@ -169,7 +133,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Financial Defaults</CardTitle>
               </CardHeader>
               <CardContent>
-                <FinancialSettingsForm initialData={appSettings} onSuccess={fetchAppSettingsAndRole} />
+                <FinancialSettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
               </CardContent>
             </Card>
 
@@ -210,7 +174,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Currency & Exchange Rate Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <CurrencySettingsForm onSuccess={fetchAppSettingsAndRole} />
+                <CurrencySettingsForm onSuccess={handleFormSuccess} />
               </CardContent>
             </Card>
 
@@ -219,7 +183,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Module Permissions</CardTitle>
               </CardHeader>
               <CardContent>
-                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={fetchAppSettingsAndRole} />
+                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={handleFormSuccess} />
               </CardContent>
             </Card>
           </>

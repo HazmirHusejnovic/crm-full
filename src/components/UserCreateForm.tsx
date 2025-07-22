@@ -94,7 +94,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="user@example.com" {...field} />
+                <Input id={field.name} placeholder="user@example.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -107,7 +107,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="********" {...field} />
+                <Input id={field.name} type="password" placeholder="********" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -120,7 +120,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             <FormItem>
               <FormLabel>First Name</FormLabel>
               <FormControl>
-                <Input placeholder="John" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="John" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -133,7 +133,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             <FormItem>
               <FormLabel>Last Name</FormLabel>
               <FormControl>
-                <Input placeholder="Doe" {...field} value={field.value || ''} />
+                <Input id={field.name} placeholder="Doe" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -147,7 +147,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
               <FormLabel>Role</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                 </FormControl>
@@ -168,6 +168,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
               <FormControl>
                 <Checkbox
+                  id={field.name}
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />

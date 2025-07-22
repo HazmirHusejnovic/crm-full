@@ -202,7 +202,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
             <FormLabel>Link to Service</FormLabel>
             <Select onValueChange={handleServiceChange} value={field.value || 'custom'}>
               <FormControl>
-                <SelectTrigger>
+                <SelectTrigger id={field.name}>
                   <SelectValue placeholder="Select a service or custom item" />
                 </SelectTrigger>
               </FormControl>
@@ -226,7 +226,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
           <FormItem>
             <FormLabel>Description</FormLabel>
             <FormControl>
-              <Textarea placeholder="Item description" {...field} />
+              <Textarea id={field.name} placeholder="Item description" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -241,6 +241,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
               <FormLabel>Quantity</FormLabel>
               <FormControl>
                 <Input
+                  id={field.name}
                   type="number"
                   step="0.01"
                   placeholder="1.00"
@@ -261,6 +262,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
               <FormLabel>Unit Price ({currentCurrencySymbol})</FormLabel>
               <FormControl>
                 <Input
+                  id={field.name}
                   type="number"
                   step="0.01"
                   placeholder="0.00"
@@ -281,6 +283,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
               <FormLabel>VAT Rate</FormLabel>
               <FormControl>
                 <Input
+                  id={field.name}
                   type="number"
                   step="0.01"
                   placeholder="0.00"

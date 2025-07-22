@@ -145,7 +145,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Subject</FormLabel>
               <FormControl>
-                <Input placeholder="Ticket subject" {...field} />
+                <Input id={field.name} placeholder="Ticket subject" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -158,7 +158,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Ticket description" {...field} />
+                <Textarea id={field.name} placeholder="Ticket description" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -172,7 +172,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
                 </FormControl>
@@ -196,7 +196,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Priority</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a priority" />
                   </SelectTrigger>
                 </FormControl>
@@ -219,7 +219,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Assigned To</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a worker" />
                   </SelectTrigger>
                 </FormControl>
@@ -244,7 +244,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Link to Task</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a task" />
                   </SelectTrigger>
                 </FormControl>
