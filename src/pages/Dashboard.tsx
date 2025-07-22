@@ -6,7 +6,8 @@ import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useAppContext } from '@/contexts/AppContext';
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface DashboardStats {
   openTasks: number;
@@ -22,33 +23,30 @@ interface TaskStatusData {
 
 const DashboardPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
-  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
+  const [loadingData, setLoadingData] = useState(true);
 
-  // usePermissions now gets its dependencies from useAppContext internally
+  const { t } = useTranslation(); // Initialize useTranslation
   const { canViewModule } = usePermissions();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Wait for global app settings and user role to load
       if (loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(true); // Still loading global data
+        setLoadingData(true);
         return;
       }
 
-      // Now that global data is loaded, check permissions
       if (!canViewModule('dashboard')) {
-        setLoadingData(false); // Not authorized, stop loading page data
+        setLoadingData(false);
         return;
       }
 
-      setLoadingData(true); // Start loading page-specific data
+      setLoadingData(true);
 
       let hasDataFetchError = false;
 
-      // Fetch open tasks count
       const { count: openTasksCount, error: tasksError } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
@@ -58,7 +56,6 @@ const DashboardPage: React.FC = () => {
         hasDataFetchError = true;
       }
 
-      // Fetch open tickets count
       const { count: openTicketsCount, error: ticketsError } = await supabase
         .from('tickets')
         .select('*', { count: 'exact', head: true })
@@ -68,7 +65,6 @@ const DashboardPage: React.FC = () => {
         hasDataFetchError = true;
       }
 
-      // Fetch completed tasks today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
@@ -85,7 +81,6 @@ const DashboardPage: React.FC = () => {
         hasDataFetchError = true;
       }
 
-      // Fetch all tasks to count by status for the chart
       const { data: allTasks, error: allTasksError } = await supabase
         .from('tasks')
         .select('status');
@@ -102,10 +97,10 @@ const DashboardPage: React.FC = () => {
           }
         });
         const chartData: TaskStatusData[] = [
-          { name: 'Pending', count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
-          { name: 'In Progress', count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
-          { name: 'Completed', count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
-          { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
+          { name: t('tasks_status_pending'), count: statusCounts.pending, fill: 'hsl(var(--yellow-600))' },
+          { name: t('tasks_status_in_progress'), count: statusCounts.in_progress, fill: 'hsl(var(--blue-600))' },
+          { name: t('tasks_status_completed'), count: statusCounts.completed, fill: 'hsl(var(--green-600))' },
+          { name: t('tasks_status_cancelled'), count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
       }
@@ -117,13 +112,12 @@ const DashboardPage: React.FC = () => {
           completedTasksToday: completedTasksTodayCount || 0,
         });
       }
-      setLoadingData(false); // End loading for dashboard specific data
+      setLoadingData(false);
     };
 
     fetchDashboardData();
-  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
 
-  // Overall loading state for the page
   const overallLoading = loadingAppSettings || loadingData;
 
   if (overallLoading) {
@@ -134,13 +128,12 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  // This check now correctly uses the reactive `canViewModule`
   if (!canViewModule('dashboard')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
+          <h1 className="text-2xl font-bold mb-4">{t('access_denied_title')}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t('access_denied_message')}</p>
         </div>
       </div>
     );
@@ -148,44 +141,43 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6">{t('dashboard')}</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('open_tasks')}</CardTitle>
             <ListTodo className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.openTasks}</div>
-            <p className="text-xs text-muted-foreground">Tasks currently pending or in progress</p>
+            <p className="text-xs text-muted-foreground">{t('tasks_pending_in_progress')}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Tickets</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('open_tickets')}</CardTitle>
             <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.openTickets}</div>
-            <p className="text-xs text-muted-foreground">Tickets awaiting resolution</p>
+            <p className="text-xs text-muted-foreground">{t('tickets_awaiting_resolution')}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasks Completed Today</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('tasks_completed_today')}</CardTitle>
             <CircleCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.completedTasksToday}</div>
-            <p className="text-xs text-muted-foreground">Tasks marked as completed today</p>
+            <p className="text-xs text-muted-foreground">{t('tasks_marked_completed_today')}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Task Status Chart */}
       <div className="grid grid-cols-1 gap-4">
         <TaskStatusChart data={taskStatusData} />
       </div>

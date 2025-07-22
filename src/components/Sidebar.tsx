@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useSession } from '@/contexts/SessionContext';
-import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ListTodo,
@@ -24,8 +23,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import the new hook
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext';
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface NavLinkProps {
   to: string;
@@ -57,11 +57,11 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isActive, isVi
 
 const Sidebar: React.FC = () => {
   const { supabase } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from global context
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
   const location = useLocation();
+  const { t } = useTranslation(); // Initialize useTranslation
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(); // No need to pass appSettings and currentUserRole, it gets them from context
+  const { canViewModule } = usePermissions();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -72,7 +72,7 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  if (loadingAppSettings) { // Use global loading state
+  if (loadingAppSettings) {
     return (
       <div className="flex h-full max-h-screen flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground items-center justify-center">
         <LoadingSpinner size={32} />
@@ -88,101 +88,101 @@ const Sidebar: React.FC = () => {
       <Separator className="bg-sidebar-border" />
       <ScrollArea className="flex-grow py-4">
         <div className="px-3 py-2">
-          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Modules</h2>
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{t('modules')}</h2>
           <div className="space-y-1">
             <NavLink
               to="/dashboard"
               icon={LayoutDashboard}
-              label="Dashboard"
+              label={t('dashboard')}
               isActive={location.pathname === '/dashboard'}
               isVisible={canViewModule('dashboard')}
             />
             <NavLink
               to="/tasks"
               icon={ListTodo}
-              label="Tasks"
+              label={t('tasks')}
               isActive={location.pathname === '/tasks'}
               isVisible={canViewModule('tasks')}
             />
             <NavLink
               to="/tickets"
               icon={Ticket}
-              label="Tickets"
+              label={t('tickets')}
               isActive={location.pathname === '/tickets'}
               isVisible={canViewModule('tickets')}
             />
             <NavLink
               to="/services"
               icon={Briefcase}
-              label="Services"
+              label={t('services')}
               isActive={location.pathname === '/services'}
               isVisible={canViewModule('services')}
             />
             <NavLink
               to="/products"
               icon={Package}
-              label="Products"
+              label={t('products')}
               isActive={location.pathname === '/products'}
               isVisible={canViewModule('products')}
             />
             <NavLink
               to="/pos"
               icon={ShoppingCart}
-              label="POS"
+              label={t('pos')}
               isActive={location.pathname === '/pos'}
               isVisible={canViewModule('pos')}
             />
             <NavLink
               to="/invoices"
               icon={ReceiptText}
-              label="Invoices"
+              label={t('invoices')}
               isActive={location.pathname === '/invoices'}
               isVisible={canViewModule('invoices')}
             />
             <NavLink
               to="/reports"
               icon={BarChart3}
-              label="Reports"
+              label={t('reports')}
               isActive={location.pathname === '/reports'}
               isVisible={canViewModule('reports')}
             />
             <NavLink
               to="/wiki"
               icon={BookOpen}
-              label="Wiki"
+              label={t('wiki')}
               isActive={location.pathname === '/wiki'}
               isVisible={canViewModule('wiki')}
             />
             <NavLink
               to="/chat"
               icon={MessageSquare}
-              label="Chat"
+              label={t('chat')}
               isActive={location.pathname === '/chat'}
               isVisible={canViewModule('chat')}
             />
             <NavLink
               to="/users"
               icon={Users}
-              label="User Management"
+              label={t('user_management')}
               isActive={location.pathname === '/users'}
               isVisible={canViewModule('users')}
             />
           </div>
         </div>
         <div className="px-3 py-2 mt-4">
-          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Account</h2>
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{t('account')}</h2>
           <div className="space-y-1">
             <NavLink
               to="/profile"
               icon={User}
-              label="My Profile"
+              label={t('my_profile')}
               isActive={location.pathname === '/profile'}
               isVisible={canViewModule('profile')}
             />
             <NavLink
               to="/settings"
               icon={Settings}
-              label="Settings"
+              label={t('settings')}
               isActive={location.pathname === '/settings'}
               isVisible={canViewModule('settings')}
             />
@@ -197,7 +197,7 @@ const Sidebar: React.FC = () => {
           onClick={handleLogout}
         >
           <LogOut className="mr-2 h-4 w-4" />
-          Logout
+          {t('logout')}
         </Button>
       </div>
     </div>
