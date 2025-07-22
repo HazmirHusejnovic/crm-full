@@ -4,6 +4,9 @@ import { Session, SupabaseClient, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+// Add this missing context creation
+const SessionContext = createContext<SessionContextType | undefined>(undefined);
+
 interface SessionContextType {
   supabase: SupabaseClient;
   session: Session | null;
