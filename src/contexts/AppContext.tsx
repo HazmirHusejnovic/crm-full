@@ -59,7 +59,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setAppSettings(settingsData as AppSettings);
     }
 
-    // Fetch user role if session exists
+    // Fetch user role only if a user is logged in
     if (session?.user?.id) {
       const { data: roleData, error: roleError } = await supabase
         .from('profiles')
@@ -77,7 +77,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setLoadingAppSettings(false);
-  }, [supabase, session]);
+  }, [supabase, session?.user?.id]); // Depend only on session.user.id for stability
 
   useEffect(() => {
     fetchGlobalAppData();
