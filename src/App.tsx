@@ -15,7 +15,7 @@ function App() {
             <Toaster richColors />
           </Router>
         </AppProvider>
-      </SessionContext>
+      </SessionProvider>
     </ThemeProvider>
   );
 }
