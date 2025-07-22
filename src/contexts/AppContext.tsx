@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useSession } from './SessionContext';
 import { toast } from 'sonner';
 
@@ -41,11 +41,24 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [loadingAppSettings, setLoadingAppSettings] = useState(true);
 
+  // Koristimo ref da pratimo ID korisnika kako bismo spriječili ponovno učitavanje
+  // ako se samo token osvježi, a korisnik ostane isti.
+  const userIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     const fetchGlobalAppData = async () => {
-      setLoadingAppSettings(true);
+      const currentSessionUserId = session?.user?.id;
 
-      // Fetch app settings
+      // Provjeri da li se ID korisnika promijenio.
+      // Ako nije, i ako već nismo u stanju učitavanja, preskoči ponovno učitavanje.
+      if (userIdRef.current === currentSessionUserId && !loadingAppSettings) {
+        return;
+      }
+
+      setLoadingAppSettings(true);
+      userIdRef.current = currentSessionUserId; // Ažuriraj ref na trenutni ID korisnika
+
+      // Dohvati postavke aplikacije
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
         .select('*')
@@ -53,34 +66,36 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .single();
 
       if (settingsError) {
-        console.error('Error fetching global app settings:', settingsError.message);
-        toast.error('Failed to load global app settings.');
+        console.error('Greška pri dohvatanju globalnih postavki aplikacije:', settingsError.message);
+        toast.error('Nije uspjelo učitavanje globalnih postavki aplikacije.');
+        setAppSettings(null); // Osiguraj da su postavke null u slučaju greške
       } else {
         setAppSettings(settingsData as AppSettings);
       }
 
-      // Fetch user role if session exists
-      if (session?.user?.id) {
+      // Dohvati ulogu korisnika ako sesija postoji
+      if (currentSessionUserId) {
         const { data: roleData, error: roleError } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', session.user.id)
+          .eq('id', currentSessionUserId)
           .single();
         if (roleError) {
-          console.error('Error fetching current user role:', roleError.message);
-          toast.error('Failed to fetch your user role.');
+          console.error('Greška pri dohvatanju uloge trenutnog korisnika:', roleError.message);
+          toast.error('Nije uspjelo dohvatanje vaše korisničke uloge.');
+          setCurrentUserRole(null); // Osiguraj da je uloga null u slučaju greške
         } else {
           setCurrentUserRole(roleData.role);
         }
       } else {
-        setCurrentUserRole(null); // No session, no role
+        setCurrentUserRole(null); // Nema sesije, nema uloge
       }
 
       setLoadingAppSettings(false);
     };
 
     fetchGlobalAppData();
-  }, [supabase, session]); // Re-fetch when supabase client or session changes
+  }, [supabase, session?.user?.id]); // Zavisnost je sada eksplicitno na session.user.id
 
   return (
     <AppContext.Provider value={{ appSettings, currentUserRole, loadingAppSettings }}>
