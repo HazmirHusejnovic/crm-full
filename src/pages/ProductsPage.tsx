@@ -78,7 +78,7 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to fetch your user role.');
     } else {
       currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
+      // Removed: setCurrentUserRole(roleData.role); // This line was causing the error
     }
 
     // Fetch app settings
@@ -93,10 +93,13 @@ const ProductsPage: React.FC = () => {
       toast.error('Failed to load app settings.');
     } else {
       currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
+      // Removed: setAppSettings(settingsData as AppSettings); // This line was causing re-renders
     }
 
-    if (!currentRole || !currentSettings) {
+    // Use the `currentUserRole` and `appSettings` from context directly,
+    // as they are updated by the AppContextProvider's useEffect.
+    // The local `currentRole` and `currentSettings` are for immediate use within this function.
+    if (!currentUserRole || !appSettings) { // Use values from context
       setLoadingData(false);
       return;
     }

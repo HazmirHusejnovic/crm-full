@@ -12,6 +12,7 @@ import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
 import InvoiceForm from '@/components/InvoiceForm';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface ClientProfile {
   id: string;
@@ -77,9 +78,8 @@ const ClientDetailsPage: React.FC = () => {
   const [clientTasks, setClientTasks] = useState<ClientTask[]>([]);
   const [clientTickets, setClientTickets] = useState<ClientTicket[]>([]);
   const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+  const [loadingData, setLoadingData] = useState(true);
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // State for app settings
 
   // State for dialogs
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
@@ -87,15 +87,15 @@ const ClientDetailsPage: React.FC = () => {
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
 
   // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  const { canViewModule, canCreate } = usePermissions();
 
   const fetchData = async () => {
-    setLoading(true);
+    setLoadingData(true);
     let currentRole: string | null = null;
     let currentSettings: AppSettings | null = null;
 
     if (!session?.user?.id || !id) {
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -111,7 +111,7 @@ const ClientDetailsPage: React.FC = () => {
       toast.error('Failed to fetch your user role.');
     } else {
       currentRole = userRoleData.role;
-      setCurrentUserRole(userRoleData.role);
+      // Removed: setCurrentUserRole(userRoleData.role);
     }
 
     // Fetch app settings
@@ -126,17 +126,20 @@ const ClientDetailsPage: React.FC = () => {
       toast.error('Failed to load app settings.');
     } else {
       currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
+      // Removed: setAppSettings(settingsData as AppSettings);
     }
 
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
+    // Use the `currentUserRole` and `appSettings` from context directly,
+    // as they are updated by the AppContextProvider's useEffect.
+    // The local `currentRole` and `currentSettings` are for immediate use within this function.
+    if (loadingAppSettings || !appSettings || !currentUserRole) { // Use values from context
+      setLoadingData(true); // Still loading global data
       return;
     }
 
     // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
     if (!canViewModule('users')) { // Koristimo canViewModule direktno
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -264,12 +267,12 @@ const ClientDetailsPage: React.FC = () => {
       setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
     }
 
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchData();
-  }, [id, supabase, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [id, supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -305,7 +308,9 @@ const ClientDetailsPage: React.FC = () => {
     fetchData(); // Re-fetch all data to update lists
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

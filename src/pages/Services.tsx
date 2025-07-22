@@ -55,19 +55,56 @@ const ServicesPage: React.FC = () => {
   const fetchAllData = async () => {
     setLoadingData(true); // Start loading for all data on this page
 
-    // Wait for global app settings and user role to load
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Still loading global data
+    let currentRole: string | null = null;
+    let currentSettings: AppSettings | null = null;
+
+    if (!session) {
+      setLoadingData(false);
       return;
     }
 
-    // Now that global data is loaded, check permissions
-    if (!canViewModule('services')) {
-      setLoadingData(false); // Not authorized, stop loading page data
+    // Fetch user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+    } else {
+      currentRole = roleData.role;
+      // Removed: setCurrentUserRole(roleData.role);
+    }
+
+    // Fetch app settings
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('module_permissions')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+
+    if (settingsError) {
+      console.error('Error fetching app settings:', settingsError.message);
+      toast.error('Failed to load app settings.');
+    } else {
+      currentSettings = settingsData as AppSettings;
+      // Removed: setAppSettings(settingsData as AppSettings);
+    }
+
+    // Use the `currentUserRole` and `appSettings` from context directly,
+    // as they are updated by the AppContextProvider's useEffect.
+    // The local `currentRole` and `currentSettings` are for immediate use within this function.
+    if (!currentUserRole || !appSettings) { // Use values from context
+      setLoadingData(false);
       return;
     }
 
-    setLoadingData(true); // Start loading page-specific data
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
+    if (!canViewModule('services')) { // Koristimo canViewModule direktno
+      setLoadingData(false);
+      return;
+    }
 
     // Fetch categories
     const { data: categoriesData, error: categoriesError } = await supabase

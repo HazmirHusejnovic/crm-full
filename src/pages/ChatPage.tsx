@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { PlusCircle } from 'lucide-react';
 import NewChatForm from '@/components/NewChatForm';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface Chat {
   id: string;
@@ -34,23 +36,22 @@ interface AppSettings {
 
 const ChatPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [conversations, setConversations] = useState<EnrichedChat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // State for app settings
 
   // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  const { canViewModule, canCreate } = usePermissions();
 
   const fetchConversations = async () => {
-    setLoading(true);
+    setLoadingData(true);
     let currentRole: string | null = null;
     let currentSettings: AppSettings | null = null;
 
     if (!session?.user?.id) {
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -65,7 +66,7 @@ const ChatPage: React.FC = () => {
       toast.error('Failed to fetch your user role.');
     } else {
       currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
+      // Removed: setCurrentUserRole(roleData.role);
     }
 
     // Fetch app settings
@@ -80,17 +81,20 @@ const ChatPage: React.FC = () => {
       toast.error('Failed to load app settings.');
     } else {
       currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
+      // Removed: setAppSettings(settingsData as AppSettings);
     }
 
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
+    // Use the `currentUserRole` and `appSettings` from context directly,
+    // as they are updated by the AppContextProvider's useEffect.
+    // The local `currentRole` and `currentSettings` are for immediate use within this function.
+    if (loadingAppSettings || !appSettings || !currentUserRole) { // Use values from context
+      setLoadingData(true); // Still loading global data
       return;
     }
 
     // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
     if (!canViewModule('chat')) { // Koristimo canViewModule direktno
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -103,14 +107,14 @@ const ChatPage: React.FC = () => {
     if (userParticipantsError) {
       toast.error('Failed to load user chat memberships: ' + userParticipantsError.message);
       setConversations([]);
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
     const chatIds = userChatParticipants.map(p => p.chat_id);
     if (chatIds.length === 0) {
       setConversations([]);
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -152,7 +156,7 @@ const ChatPage: React.FC = () => {
         setSelectedChatId(null);
       }
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
@@ -187,7 +191,7 @@ const ChatPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, session, selectedChatId, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, session, selectedChatId, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);
@@ -195,7 +199,9 @@ const ChatPage: React.FC = () => {
     setSelectedChatId(newChatId);
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

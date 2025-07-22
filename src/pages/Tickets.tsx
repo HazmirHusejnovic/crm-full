@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useAppContext } '@/contexts/AppContext'; // NEW: Import useAppContext
 import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface Ticket {

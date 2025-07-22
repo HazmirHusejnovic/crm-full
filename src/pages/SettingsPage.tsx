@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface AppSettings {
   company_name: string | null;
@@ -40,20 +41,19 @@ interface AppSettings {
 
 const SettingsPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
+  const [loadingData, setLoadingData] = useState(true);
 
   // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  const { canViewModule } = usePermissions();
 
   const fetchAppSettingsAndRole = async () => {
-    setLoading(true);
+    setLoadingData(true);
     let currentRole: string | null = null;
     let currentSettings: AppSettings | null = null;
 
     if (!session) {
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -68,7 +68,7 @@ const SettingsPage: React.FC = () => {
       toast.error('Failed to fetch your user role.');
     } else {
       currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
+      // Removed: setCurrentUserRole(roleData.role);
     }
 
     // Fetch app settings
@@ -82,9 +82,9 @@ const SettingsPage: React.FC = () => {
       toast.error('Failed to load application settings: ' + settingsError.message);
     } else {
       currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
+      // Removed: setAppSettings(settingsData as AppSettings);
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
@@ -103,11 +103,17 @@ const SettingsPage: React.FC = () => {
       toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
     } else {
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
+      // Since appSettings is from context, we need to trigger a re-fetch or rely on context update
+      // For now, we'll just update the local state for immediate feedback,
+      // and the context's useEffect will eventually re-fetch and sync.
+      // A more robust solution might involve a callback from AppContext to update its state.
       setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
     }
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

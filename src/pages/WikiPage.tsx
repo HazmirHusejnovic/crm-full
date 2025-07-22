@@ -15,6 +15,7 @@ import WikiArticleForm from '@/components/WikiArticleForm';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface WikiCategory {
   id: string;
@@ -55,10 +56,11 @@ interface AppSettings {
 
 const WikiPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [categories, setCategories] = useState<WikiCategory[]>([]);
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [articleVersions, setArticleVersions] = useState<WikiArticleVersion[]>([]);
-  const [loading, setLoading] = useState(true); // Consolidated loading state
+  const [loadingData, setLoadingData] = useState(true); // Consolidated loading state
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isArticleFormOpen, setIsArticleFormOpen] = useState(false);
@@ -70,19 +72,17 @@ const WikiPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [filterVisibility, setFilterVisibility] = useState<string>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
   // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
   const fetchAllData = async () => {
-    setLoading(true);
+    setLoadingData(true);
     let currentRole: string | null = null;
     let currentSettings: AppSettings | null = null;
 
     if (!session) {
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -97,7 +97,7 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to fetch your user role.');
     } else {
       currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
+      // Removed: setCurrentUserRole(roleData.role);
     }
 
     // Fetch app settings
@@ -112,17 +112,20 @@ const WikiPage: React.FC = () => {
       toast.error('Failed to load app settings.');
     } else {
       currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
+      // Removed: setAppSettings(settingsData as AppSettings);
     }
 
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
+    // Use the `currentUserRole` and `appSettings` from context directly,
+    // as they are updated by the AppContextProvider's useEffect.
+    // The local `currentRole` and `currentSettings` are for immediate use within this function.
+    if (!currentUserRole || !appSettings) { // Use values from context
+      setLoadingData(false);
       return;
     }
 
     // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
     if (!canViewModule('wiki')) { // Koristimo canViewModule direktno
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -177,12 +180,12 @@ const WikiPage: React.FC = () => {
     } else {
       setArticles(articlesData as WikiArticle[]);
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, filterCategoryId, filterVisibility, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const fetchArticleVersions = async (articleId: string) => {
     setLoadingVersions(true);
@@ -279,7 +282,9 @@ const WikiPage: React.FC = () => {
     fetchAllData();
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -488,7 +493,7 @@ const WikiPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">No categories found. Create one!</p>
+              <p className="col-span-full text-center text-gray-500">{t('no_wiki_categories_found')}</p>
             ) : (
               categories.map((category) => (
                 <Card key={category.id} className="flex flex-col">
