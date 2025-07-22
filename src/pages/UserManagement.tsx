@@ -43,19 +43,11 @@ const UserManagementPage: React.FC = () => {
   const fetchProfiles = async () => {
     setLoadingData(true); // Start loading for profiles specific data
 
-    // Wait for global app settings and user role to load
-    if (loadingAppSettings || !appSettings || !currentUserRole) {
-      setLoadingData(true); // Still loading global data
-      return;
-    }
-
-    // Now that global data is loaded, check permissions
+    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
     if (!canViewModule('users')) {
       setLoadingData(false); // Not authorized, stop loading page data
       return;
     }
-
-    setLoadingData(true); // Start loading page-specific data
 
     let query = supabase
       .from('profiles_with_auth_emails')
@@ -87,8 +79,13 @@ const UserManagementPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // Only proceed if global app settings and user role are loaded and available
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Keep local loading state true while global context is loading
+      return;
+    }
     fetchProfiles();
-  }, [supabase, searchTerm, filterRole, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [supabase, searchTerm, filterRole, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);

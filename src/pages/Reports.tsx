@@ -42,18 +42,6 @@ const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     const fetchReportData = async () => {
-      // Wait for global app settings and user role to load
-      if (loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(true); // Still loading global data
-        return;
-      }
-
-      // Now that global data is loaded, check permissions
-      if (!canViewModule('reports')) {
-        setLoadingData(false); // Not authorized, stop loading page data
-        return; // Exit if not authorized
-      }
-
       setLoadingData(true); // Start loading page-specific data
 
       let hasError = false;
@@ -158,8 +146,20 @@ const ReportsPage: React.FC = () => {
       setLoadingData(false);
     };
 
+    // Only proceed if global app settings and user role are loaded and available
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Keep local loading state true while global context is loading
+      return;
+    }
+
+    // If module is not viewable, set loading to false and return
+    if (!canViewModule('reports')) {
+      setLoadingData(false);
+      return; // Exit if not authorized
+    }
+
     fetchReportData();
-  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
+  }, [supabase, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
 
   const overallLoading = loadingAppSettings || loadingData;
 

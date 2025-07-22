@@ -33,17 +33,7 @@ const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (loadingAppSettings || !appSettings || !currentUserRole) {
-        setLoadingData(true);
-        return;
-      }
-
-      if (!canViewModule('dashboard')) {
-        setLoadingData(false);
-        return;
-      }
-
-      setLoadingData(true);
+      setLoadingData(true); // Start loading for dashboard specific data
 
       let hasDataFetchError = false;
 
@@ -115,8 +105,20 @@ const DashboardPage: React.FC = () => {
       setLoadingData(false);
     };
 
+    // Only proceed if global app settings and user role are loaded and available
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Keep local loading state true while global context is loading
+      return;
+    }
+
+    // If module is not viewable, set loading to false and return
+    if (!canViewModule('dashboard')) {
+      setLoadingData(false);
+      return;
+    }
+
     fetchDashboardData();
-  }, [supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
+  }, [supabase, appSettings, currentUserRole, loadingAppSettings, canViewModule, t]);
 
   const overallLoading = loadingAppSettings || loadingData;
 
