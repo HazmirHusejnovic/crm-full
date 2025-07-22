@@ -1,4 +1,22 @@
-// ... (previous imports remain the same)
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useSession } from './SessionContext';
+import { toast } from 'sonner';
+
+// First define the context type
+interface AppContextType {
+  appSettings: AppSettings | null;
+  currentUserRole: string | null;
+  loadingAppSettings: boolean;
+  dbConnectionError: boolean;
+}
+
+interface AppSettings {
+  // Add your AppSettings interface properties here
+  [key: string]: any;
+}
+
+// Create the context with initial undefined value
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { supabase, session } = useSession();
@@ -71,4 +89,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       {children}
     </AppContext.Provider>
   );
+};
+
+// Export the useAppContext hook
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useAppContext must be used within an AppContextProvider');
+  }
+  return context;
 };
