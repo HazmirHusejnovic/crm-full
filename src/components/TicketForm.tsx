@@ -22,14 +22,19 @@ import {
 } from '@/components/ui/select';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 const ticketFormSchema = z.object({
   subject: z.string().min(1, { message: 'Subject is required.' }),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   status: z.enum(['open', 'in_progress', 'resolved', 'closed', 'reopened']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
-  assigned_to: z.string().uuid().optional().nullable(), // UUID of the assigned worker profile
-  linked_task_id: z.string().uuid().optional().nullable(), // UUID of the linked task
+  assigned_user_id: z.string().uuid().optional().nullable(), // Renamed
+  assigned_group_id: z.string().uuid().optional().nullable(), // New field
+  linked_task_id: z.string().uuid().optional().nullable(),
+  linked_invoice_id: z.string().uuid().optional().nullable(), // New field
+  sla_due_at: z.string().optional().nullable(), // New field (date string)
+  sla_status: z.enum(['met', 'breached', 'warning']).optional().nullable(), // New field
 });
 
 type TicketFormValues = z.infer<typeof ticketFormSchema>;
@@ -51,20 +56,36 @@ interface Task {
   title: string;
 }
 
+interface Invoice {
+  id: string;
+  invoice_number: string;
+}
+
+interface TicketGroup {
+  id: string;
+  name: string;
+}
+
 const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
   const { supabase, session } = useSession();
   const [workers, setWorkers] = useState<Profile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]); // New state
+  const [ticketGroups, setTicketGroups] = useState<TicketGroup[]>([]); // New state
 
   const form = useForm<TicketFormValues>({
     resolver: zodResolver(ticketFormSchema),
-    defaultValues: initialData || {
-      subject: '',
-      description: '',
-      status: 'open',
-      priority: 'medium',
-      assigned_to: null,
-      linked_task_id: null,
+    defaultValues: {
+      subject: initialData?.subject || '',
+      description: initialData?.description || '',
+      status: initialData?.status || 'open',
+      priority: initialData?.priority || 'medium',
+      assigned_user_id: initialData?.assigned_user_id || null,
+      assigned_group_id: initialData?.assigned_group_id || null, // Initialize new field
+      linked_task_id: initialData?.linked_task_id || null,
+      linked_invoice_id: initialData?.linked_invoice_id || null, // Initialize new field
+      sla_due_at: initialData?.sla_due_at ? format(new Date(initialData.sla_due_at), 'yyyy-MM-dd') : '', // Format date
+      sla_status: initialData?.sla_status || 'met', // Initialize new field
     },
   });
 
@@ -92,6 +113,30 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
       } else {
         setTasks(tasksData);
       }
+
+      // Fetch invoices (new)
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id, invoice_number')
+        .order('invoice_number', { ascending: false });
+
+      if (invoicesError) {
+        toast.error('Failed to load invoices: ' + invoicesError.message);
+      } else {
+        setInvoices(invoicesData);
+      }
+
+      // Fetch ticket groups (new)
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('ticket_groups')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (groupsError) {
+        toast.error('Failed to load ticket groups: ' + groupsError.message);
+      } else {
+        setTicketGroups(groupsData);
+      }
     };
 
     fetchData();
@@ -106,8 +151,11 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
     const ticketData = {
       ...values,
       created_by: session.user.id,
-      assigned_to: values.assigned_to === 'null-value' ? null : values.assigned_to, // Handle null-value
-      linked_task_id: values.linked_task_id === 'null-value' ? null : values.linked_task_id, // Handle null-value
+      assigned_user_id: values.assigned_user_id === 'null-value' ? null : values.assigned_user_id,
+      assigned_group_id: values.assigned_group_id === 'null-value' ? null : values.assigned_group_id, // Handle null-value
+      linked_task_id: values.linked_task_id === 'null-value' ? null : values.linked_task_id,
+      linked_invoice_id: values.linked_invoice_id === 'null-value' ? null : values.linked_invoice_id, // Handle null-value
+      sla_due_at: values.sla_due_at ? new Date(values.sla_due_at).toISOString() : null, // Convert to ISO string
     };
 
     let error = null;
@@ -213,10 +261,10 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
         />
         <FormField
           control={form.control}
-          name="assigned_to"
+          name="assigned_user_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Assigned To</FormLabel>
+              <FormLabel>Assigned To User</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
                   <SelectTrigger>
@@ -224,10 +272,35 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
+                  <SelectItem value="null-value">Unassigned</SelectItem>
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="assigned_group_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Assigned To Group</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a group" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="null-value">No Group</SelectItem>
+                  {ticketGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -249,12 +322,72 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">No Task Linked</SelectItem> {/* Changed value */}
+                  <SelectItem value="null-value">No Task Linked</SelectItem>
                   {tasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="linked_invoice_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Link to Invoice</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an invoice" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="null-value">No Invoice Linked</SelectItem>
+                  {invoices.map((invoice) => (
+                    <SelectItem key={invoice.id} value={invoice.id}>
+                      {invoice.invoice_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="sla_due_at"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>SLA Due Date</FormLabel>
+              <FormControl>
+                <Input type="date" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="sla_status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>SLA Status</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'met'}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select SLA status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="met">Met</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="breached">Breached</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
