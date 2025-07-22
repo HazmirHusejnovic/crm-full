@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { createClient } from '@supabase/supabase-js';
 import { Session, SupabaseClient } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { useTranslation } from 'react-i18next';
 
 interface SessionContextType {
   supabase: SupabaseClient;
@@ -20,44 +20,53 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { t } = useTranslation(); // Initialize useTranslation
+  const { t } = useTranslation();
 
-  // Koristimo ref da pratimo ID trenutnog korisnika kako bismo spriječili ponovno renderovanje
-  // ako se samo token osvježi, a korisnik ostane isti.
-  const currentUserIdRef = useRef<string | null | undefined>(undefined);
+  // Use a ref to track the user ID of the session currently in state.
+  // This helps prevent unnecessary state updates if only the session token refreshes.
+  const currentSessionUserIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    // Početna provjera sesije
+    let isMounted = true; // Flag to prevent state updates on unmounted component
+
+    // 1. Initial session check
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      currentUserIdRef.current = initialSession?.user?.id;
-      setLoading(false);
+      if (isMounted) {
+        setSession(initialSession);
+        currentSessionUserIdRef.current = initialSession?.user?.id || null;
+        setLoading(false); // Initial load complete
+      }
     });
 
-    // Promjene stanja autentifikacije u realnom vremenu
+    // 2. Real-time auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!isMounted) return;
+
       const newUserId = currentSession?.user?.id || null;
 
-      // Ažuriraj stanje samo ako se ID korisnika promijenio ili ako je početno učitavanje i sesija je null
-      if (newUserId !== currentUserIdRef.current || (currentUserIdRef.current === undefined && newUserId === null)) {
+      // Only update React state if the user ID has actually changed
+      // or if it's a sign-out event (where newUserId becomes null and currentSessionUserIdRef.current might not be null yet)
+      if (newUserId !== currentSessionUserIdRef.current || _event === 'SIGNED_OUT') {
         setSession(currentSession);
-        currentUserIdRef.current = newUserId;
+        currentSessionUserIdRef.current = newUserId; // Update ref to reflect new state
       }
-      setLoading(false); // Osiguraj da je loading false nakon bilo koje promjene stanja autentifikacije
 
+      // Handle navigation based on auth events
       if (_event === 'SIGNED_OUT') {
         navigate('/login');
       } else if (_event === 'SIGNED_IN' || _event === 'USER_UPDATED') {
-        // Navigiraj samo ako je korisnik zaista prijavljen i nije već na root putanji
-        // Index.tsx će se pobrinuti za preusmjeravanje na dashboard
+        // If signed in/updated and currently on login page, navigate to root (which redirects to dashboard)
         if (currentSession?.user?.id && location.pathname === '/login') {
           navigate('/');
         }
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [navigate]); // Zavisnosti: navigate. Ovaj efekat se pokreće samo jednom pri montiranju.
+    return () => {
+      isMounted = false; // Cleanup flag
+      subscription.unsubscribe();
+    };
+  }, [navigate, supabase]); // Dependencies: navigate and supabase client (stable)
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">{t('loading')}</div>;
