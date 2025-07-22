@@ -80,7 +80,7 @@ const ProductCategoryForm: React.FC<ProductCategoryFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Category Name</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="e.g., Electronics" {...field} />
+                <Input placeholder="e.g., Electronics" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -93,7 +93,7 @@ const ProductCategoryForm: React.FC<ProductCategoryFormProps> = ({ initialData, 
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea id={field.name} placeholder="Description of the product category" {...field} />
+                <Textarea placeholder="Description of the product category" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

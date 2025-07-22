@@ -125,7 +125,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Title</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="Task title" {...field} />
+                <Input placeholder="Task title" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -138,7 +138,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea id={field.name} placeholder="Task description" {...field} />
+                <Textarea placeholder="Task description" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -150,8 +150,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <FormControl>
-                  <SelectTrigger id={field.name}>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
                 </FormControl>
@@ -174,12 +175,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
               <FormLabel>Assigned To</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a worker" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">Unassigned</SelectItem>
+                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})
@@ -198,7 +199,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
             <FormItem>
               <FormLabel>Due Date</FormLabel>
               <FormControl>
-                <Input id={field.name} type="date" {...field} />
+                <Input type="date" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

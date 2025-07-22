@@ -153,7 +153,7 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
             <FormItem>
               <FormLabel>Title</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="Article title" {...field} />
+                <Input placeholder="Article title" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -167,7 +167,7 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
               <FormLabel>Category</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                 </FormControl>
@@ -192,7 +192,7 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
               <FormLabel>Visibility</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select visibility" />
                   </SelectTrigger>
                 </FormControl>
@@ -217,7 +217,7 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
                   theme="snow"
                   value={field.value}
                   onChange={field.onChange}
-                  className="h-64 mb-12"
+                  className="h-64 mb-12" // Adjust height and add margin-bottom to prevent overlap
                 />
               </FormControl>
               <FormMessage />

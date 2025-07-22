@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useSession } from './SessionContext';
 import { toast } from 'sonner';
 
@@ -31,7 +31,6 @@ interface AppContextType {
   appSettings: AppSettings | null;
   currentUserRole: string | null;
   loadingAppSettings: boolean;
-  refreshAppSettings: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,49 +41,49 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [loadingAppSettings, setLoadingAppSettings] = useState(true);
 
-  const fetchGlobalAppData = useCallback(async () => {
-    setLoadingAppSettings(true);
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('*')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching global app settings:', settingsError.message);
-      toast.error('Failed to load global app settings.');
-    } else {
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    // Fetch user role if session exists
-    if (session?.user?.id) {
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching current user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-    } else {
-      setCurrentUserRole(null); // No session, no role
-    }
-
-    setLoadingAppSettings(false);
-  }, [supabase, session]);
-
   useEffect(() => {
+    const fetchGlobalAppData = async () => {
+      setLoadingAppSettings(true);
+
+      // Fetch app settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .single();
+
+      if (settingsError) {
+        console.error('Error fetching global app settings:', settingsError.message);
+        toast.error('Failed to load global app settings.');
+      } else {
+        setAppSettings(settingsData as AppSettings);
+      }
+
+      // Fetch user role if session exists
+      if (session?.user?.id) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (roleError) {
+          console.error('Error fetching current user role:', roleError.message);
+          toast.error('Failed to fetch your user role.');
+        } else {
+          setCurrentUserRole(roleData.role);
+        }
+      } else {
+        setCurrentUserRole(null); // No session, no role
+      }
+
+      setLoadingAppSettings(false);
+    };
+
     fetchGlobalAppData();
-  }, [fetchGlobalAppData]);
+  }, [supabase, session]); // Re-fetch when supabase client or session changes
 
   return (
-    <AppContext.Provider value={{ appSettings, currentUserRole, loadingAppSettings, refreshAppSettings: fetchGlobalAppData }}>
+    <AppContext.Provider value={{ appSettings, currentUserRole, loadingAppSettings }}>
       {children}
     </AppContext.Provider>
   );

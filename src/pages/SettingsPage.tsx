@@ -1,18 +1,18 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
 import CurrencySettingsForm from '@/components/CurrencySettingsForm';
-import ModulePermissionsForm from '@/components/ModulePermissionsForm';
+import ModulePermissionsForm from '@/components/ModulePermissionsForm'; // Import new component
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface AppSettings {
   company_name: string | null;
@@ -36,14 +36,60 @@ interface AppSettings {
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
   default_currency_id: string | null;
-  module_permissions: Record<string, Record<string, string[]>> | null;
+  module_permissions: Record<string, Record<string, string[]>> | null; // New field
 }
 
 const SettingsPage: React.FC = () => {
-  const { supabase } = useSession();
-  const { appSettings, currentUserRole, loadingAppSettings, refreshAppSettings } = useAppContext();
+  const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
+  const [loadingData, setLoadingData] = useState(true);
 
+  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions();
+
+  const fetchAppSettingsAndRole = async () => {
+    setLoadingData(true);
+    let currentRole: string | null = null;
+    let currentSettings: AppSettings | null = null;
+
+    if (!session) {
+      setLoadingData(false);
+      return;
+    }
+
+    // Fetch user role
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
+    } else {
+      currentRole = roleData.role;
+      // Removed: setCurrentUserRole(roleData.role);
+    }
+
+    // Fetch app settings
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('*')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+
+    if (settingsError) {
+      toast.error('Failed to load application settings: ' + settingsError.message);
+    } else {
+      currentSettings = settingsData as AppSettings;
+      // Removed: setAppSettings(settingsData as AppSettings);
+    }
+    setLoadingData(false);
+  };
+
+  useEffect(() => {
+    fetchAppSettingsAndRole();
+  }, [supabase, session]); // Dependencies are just supabase and session.
 
   const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
     if (!appSettings) return;
@@ -57,15 +103,17 @@ const SettingsPage: React.FC = () => {
       toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
     } else {
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
-      refreshAppSettings();
+      // Since appSettings is from context, we need to trigger a re-fetch or rely on context update
+      // For now, we'll just update the local state for immediate feedback,
+      // and the context's useEffect will eventually re-fetch and sync.
+      // A more robust solution might involve a callback from AppContext to update its state.
+      setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
     }
   };
 
-  const handleFormSuccess = () => {
-    refreshAppSettings();
-  };
+  const overallLoading = loadingAppSettings || loadingData;
 
-  if (loadingAppSettings) {
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -73,7 +121,7 @@ const SettingsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') {
+  if (currentUserRole !== 'administrator') { // Settings page is only for administrators
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -112,7 +160,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Company Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <CompanySettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
+                <CompanySettingsForm initialData={appSettings} onSuccess={fetchAppSettingsAndRole} />
               </CardContent>
             </Card>
 
@@ -121,7 +169,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Financial Defaults</CardTitle>
               </CardHeader>
               <CardContent>
-                <FinancialSettingsForm initialData={appSettings} onSuccess={handleFormSuccess} />
+                <FinancialSettingsForm initialData={appSettings} onSuccess={fetchAppSettingsAndRole} />
               </CardContent>
             </Card>
 
@@ -162,7 +210,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Currency & Exchange Rate Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <CurrencySettingsForm onSuccess={handleFormSuccess} />
+                <CurrencySettingsForm onSuccess={fetchAppSettingsAndRole} />
               </CardContent>
             </Card>
 
@@ -171,7 +219,7 @@ const SettingsPage: React.FC = () => {
                 <CardTitle>Module Permissions</CardTitle>
               </CardHeader>
               <CardContent>
-                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={handleFormSuccess} />
+                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={fetchAppSettingsAndRole} />
               </CardContent>
             </Card>
           </>

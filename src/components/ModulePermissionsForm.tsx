@@ -133,13 +133,12 @@ const ModulePermissionsForm: React.FC<ModulePermissionsFormProps> = ({ initialPe
                         <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                           <FormControl>
                             <Checkbox
-                              id={field.name} // Ensure ID is set for checkbox
                               checked={field.value}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>
                           <div className="space-y-1 leading-none">
-                            <FormLabel htmlFor={field.name} className="capitalize">{role}</FormLabel>
+                            <FormLabel className="capitalize">{role}</FormLabel>
                           </div>
                         </FormItem>
                       )}

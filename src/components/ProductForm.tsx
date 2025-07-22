@@ -157,7 +157,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Product Name</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="e.g., Laptop Pro" {...field} />
+                <Input placeholder="e.g., Laptop Pro" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -170,7 +170,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea id={field.name} placeholder="Detailed description of the product" {...field} />
+                <Textarea placeholder="Detailed description of the product" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -184,7 +184,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Category</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value || 'null-value'}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                 </FormControl>
@@ -208,7 +208,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Price</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -221,7 +221,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Stock Quantity</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" placeholder="0" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -234,7 +234,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>VAT Rate (e.g., 0.17 for 17%)</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -247,7 +247,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>SKU (Stock Keeping Unit)</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="e.g., LP-001" {...field} value={field.value || ''} />
+                <Input placeholder="e.g., LP-001" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -149,7 +149,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Service Name</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="e.g., Network Troubleshooting" {...field} />
+                <Input placeholder="e.g., Network Troubleshooting" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -162,7 +162,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea id={field.name} placeholder="Detailed description of the service" {...field} />
+                <Textarea placeholder="Detailed description of the service" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -176,7 +176,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Category</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                 </FormControl>
@@ -199,7 +199,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Default Price</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -212,7 +212,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Duration (minutes)</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" placeholder="60" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" placeholder="60" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -225,7 +225,7 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>VAT Rate (e.g., 0.17 for 17%)</FormLabel>
               <FormControl>
-                <Input id={field.name} type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
+                <Input type="number" step="0.01" placeholder="0.17" {...field} onChange={e => field.onChange(e.target.value)} />
               </FormControl>
               <FormMessage />
             </FormItem>

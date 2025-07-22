@@ -290,7 +290,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
   }
 
   return (
-    <FormProvider {...form}>
+    <FormProvider {...form}> {/* Wrap the form with FormProvider */}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
@@ -299,7 +299,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
             <FormItem>
               <FormLabel>Invoice Number</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="INV-2024-001" {...field} />
+                <Input placeholder="INV-2024-001" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -313,7 +313,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Client</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
                 </FormControl>
@@ -337,7 +337,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Invoice Currency</FormLabel>
               <Select onValueChange={field.onChange} value={field.value || ''}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select invoice currency" />
                   </SelectTrigger>
                 </FormControl>
@@ -361,7 +361,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               <FormItem>
                 <FormLabel>Issue Date</FormLabel>
                 <FormControl>
-                  <Input id={field.name} type="date" {...field} />
+                  <Input type="date" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -374,7 +374,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               <FormItem>
                 <FormLabel>Due Date</FormLabel>
                 <FormControl>
-                  <Input id={field.name} type="date" {...field} />
+                  <Input type="date" {...field} />
                 </FormControl>
                 <FormMessage />
             </FormItem>
@@ -389,7 +389,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger id={field.name}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                 </FormControl>
@@ -413,10 +413,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               key={item.id}
               index={index}
               onRemove={remove}
-              invoiceCurrencyId={currentInvoiceCurrencyId}
-              appDefaultCurrencyId={appDefaultCurrencyId}
-              exchangeRates={exchangeRates}
-              currencies={currencies}
+              invoiceCurrencyId={currentInvoiceCurrencyId} // Pass invoice currency
+              appDefaultCurrencyId={appDefaultCurrencyId} // Pass app default currency
+              exchangeRates={exchangeRates} // Pass exchange rates
+              currencies={currencies} // Pass currencies for symbol lookup
             />
           ))}
         </div>

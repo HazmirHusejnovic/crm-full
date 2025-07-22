@@ -80,7 +80,7 @@ const WikiCategoryForm: React.FC<WikiCategoryFormProps> = ({ initialData, onSucc
             <FormItem>
               <FormLabel>Category Name</FormLabel>
               <FormControl>
-                <Input id={field.name} placeholder="e.g., General IT" {...field} />
+                <Input placeholder="e.g., General IT" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -93,7 +93,7 @@ const WikiCategoryForm: React.FC<WikiCategoryFormProps> = ({ initialData, onSucc
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea id={field.name} placeholder="Description of the wiki category" {...field} />
+                <Textarea placeholder="Description of the wiki category" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
