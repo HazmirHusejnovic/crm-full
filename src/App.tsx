@@ -1,7 +1,10 @@
-import React from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { router } from './router';
+import React from 'react'
 
-export const App = () => {
-  return <RouterProvider router={router} />;
-};
+export default function App() {
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1>Hello World</h1>
+      <p>If you see this, React is working</p>
+    </div>
+  )
+}
