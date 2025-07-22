@@ -426,7 +426,7 @@ const POSPage: React.FC = () => {
                     <p>Stock: <span className={`font-medium ${product.stock_quantity <= 5 && product.stock_quantity > 0 ? 'text-orange-500' : product.stock_quantity === 0 ? 'text-red-500' : 'text-green-600'}`}>{product.stock_quantity}</span></p>
                     <p>Category: <span className="font-medium">{product.product_categories?.name || 'N/A'}</span></p>
                     <p>SKU: <span className="font-medium">{product.sku || 'N/A'}</span></p>
-                    <p>VAT Rate: <span className="font-medium">{(product.vat_rate * 100).toFixed(2)}%</span></p>
+                    <p>VAT Rate: <span className="font-medium">{(item.vat_rate * 100).toFixed(2)}%</span></p>
                   </div>
                 </CardContent>
               </Card>

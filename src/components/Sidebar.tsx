@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions'; // Import the new hook
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface NavLinkProps {
   to: string;
@@ -54,72 +55,13 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon: Icon, label, isActive, isVi
   );
 };
 
-interface AppSettings {
-  module_dashboard_enabled: boolean;
-  module_tasks_enabled: boolean;
-  module_tickets_enabled: boolean;
-  module_services_enabled: boolean;
-  module_products_enabled: boolean;
-  module_pos_enabled: boolean;
-  module_invoices_enabled: boolean;
-  module_reports_enabled: boolean;
-  module_users_enabled: boolean;
-  module_profile_enabled: boolean;
-  module_settings_enabled: boolean;
-  module_wiki_enabled: boolean;
-  module_chat_enabled: boolean;
-  module_permissions: Record<string, Record<string, string[]>> | null; // New field
-}
-
 const Sidebar: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { supabase } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from global context
   const location = useLocation();
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [loadingSettings, setLoadingSettings] = useState(true);
 
   // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(appSettings, userRole as 'client' | 'worker' | 'administrator');
-
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      setLoadingSettings(true);
-      if (!session) {
-        setLoadingSettings(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-      setLoadingSettings(false);
-    };
-
-    fetchSettingsAndRole();
-  }, [session, supabase]);
+  const { canViewModule } = usePermissions(); // No need to pass appSettings and currentUserRole, it gets them from context
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -130,7 +72,7 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  if (loadingSettings) {
+  if (loadingAppSettings) { // Use global loading state
     return (
       <div className="flex h-full max-h-screen flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground items-center justify-center">
         <LoadingSpinner size={32} />
