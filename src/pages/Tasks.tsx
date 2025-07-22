@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface Task {
   id: string;
@@ -25,74 +26,32 @@ interface Task {
   creator_profile: { first_name: string | null; last_name: string | null } | null; // For created_by profile
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const TasksPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
   const fetchTasks = async () => {
-    setLoading(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
+    setLoadingData(true); // Start loading for tasks specific data
 
-    if (!session) {
-      setLoading(false);
+    // Wait for session and global app settings/role to load
+    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(false);
       return;
     }
 
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
-      return;
-    }
-
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    // i ažurira se kada se `appSettings` ili `currentUserRole` promijene.
-    // Ovdje samo koristimo njegovu trenutnu vrijednost.
-    if (!canViewModule('tasks')) { // Koristimo canViewModule direktno
-      setLoading(false);
-      return;
+    // Now that appSettings and currentUserRole are loaded, check permission
+    if (!canViewModule('tasks')) {
+      setLoadingData(false);
+      return; // Not authorized
     }
 
     let query = supabase
@@ -125,12 +84,12 @@ const TasksPage: React.FC = () => {
     } else {
       setTasks(data as Task[]);
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, filterStatus, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);
@@ -166,7 +125,9 @@ const TasksPage: React.FC = () => {
     fetchTasks();
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

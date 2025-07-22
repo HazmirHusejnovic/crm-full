@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface Product {
   id: string;
@@ -53,16 +54,12 @@ interface ExchangeRate {
   rate: number;
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-  default_currency_id: string | null;
-}
-
 const POSPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
@@ -72,65 +69,30 @@ const POSPage: React.FC = () => {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [selectedCurrencyId, setSelectedCurrencyId] = useState<string | null>(null);
   const [appDefaultCurrencyId, setAppDefaultCurrencyId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule, canCreate } = usePermissions();
 
   useEffect(() => {
     const fetchAllData = async () => {
-      setLoading(true);
-      let currentRole: string | null = null;
-      let currentSettings: AppSettings | null = null;
+      setLoadingData(true); // Start loading for all data on this page
 
-      if (!session) {
-        setLoading(false);
+      // Wait for session and global app settings/role to load
+      if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+        setLoadingData(false);
         return;
       }
 
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        currentRole = roleData.role;
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions, default_currency_id')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        currentSettings = settingsData as AppSettings;
-        setAppSettings(settingsData as AppSettings);
-        setAppDefaultCurrencyId(settingsData?.default_currency_id || null);
-        if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
-          setSelectedCurrencyId(settingsData?.default_currency_id || null);
-        }
-      }
-
-      if (!currentRole || !currentSettings) {
-        setLoading(false);
-        return;
-      }
-
-      // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-      if (!canViewModule('pos')) { // Koristimo canViewModule direktno
-        setLoading(false);
+      // Now that appSettings and currentUserRole are loaded, check permission
+      if (!canViewModule('pos')) {
+        setLoadingData(false);
         return; // Exit if not authorized
+      }
+
+      // Set app default currency from context
+      setAppDefaultCurrencyId(appSettings.default_currency_id || null);
+      if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
+        setSelectedCurrencyId(appSettings.default_currency_id || null);
       }
 
       let hasError = false;
@@ -199,11 +161,11 @@ const POSPage: React.FC = () => {
         setClients(clientsData as ClientProfile[]);
       }
 
-      setLoading(false);
+      setLoadingData(false);
     };
 
     fetchAllData();
-  }, [supabase, searchTerm, selectedCurrencyId, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, selectedCurrencyId, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -406,7 +368,9 @@ const POSPage: React.FC = () => {
     // or trigger a print of the fiscal receipt.
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -487,6 +451,7 @@ const POSPage: React.FC = () => {
                   <SelectValue placeholder="Walk-in Customer" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="null-value">Walk-in Customer</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.first_name} {client.last_name} ({client.email})

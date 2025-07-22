@@ -23,80 +23,23 @@ import POSPage from "./pages/POSPage";
 import WikiPage from "./pages/WikiPage";
 import ChatPage from "./pages/ChatPage";
 import { SessionContextProvider, useSession } from "./contexts/SessionContext";
+import { AppContextProvider, useAppContext } from "./contexts/AppContext"; // NEW: Import AppContextProvider and useAppContext
 import { ThemeProvider } from "./components/ThemeProvider";
 import MainLayout from "./components/MainLayout";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import LoadingSpinner from "./components/LoadingSpinner";
-import { toast } from "sonner";
 import { usePermissions } from "./hooks/usePermissions"; // Import the new hook
 
 const queryClient = new QueryClient();
 
-interface AppSettings {
-  module_dashboard_enabled: boolean;
-  module_tasks_enabled: boolean;
-  module_tickets_enabled: boolean;
-  module_services_enabled: boolean;
-  module_products_enabled: boolean;
-  module_pos_enabled: boolean;
-  module_invoices_enabled: boolean;
-  module_reports_enabled: boolean;
-  module_users_enabled: boolean;
-  module_profile_enabled: boolean;
-  module_settings_enabled: boolean;
-  module_wiki_enabled: boolean;
-  module_chat_enabled: boolean;
-  module_permissions: Record<string, Record<string, string[]>> | null; // New field
-}
-
-// Component to fetch settings and conditionally render routes
 const AppRoutes = () => {
-  const { supabase, session } = useSession();
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [loadingSettings, setLoadingSettings] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const { session } = useSession();
+  const { loadingAppSettings } = useAppContext(); // Get global loading state from context
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(appSettings, currentUserRole);
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule } = usePermissions();
 
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      setLoadingSettings(true);
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings for routing.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-
-      // Fetch user role
-      if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch user role for routing.');
-        } else {
-          setCurrentUserRole(roleData.role);
-        }
-      }
-      setLoadingSettings(false);
-    };
-
-    fetchSettingsAndRole();
-  }, [session, supabase]);
-
-  if (loadingSettings) {
+  if (loadingAppSettings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -152,7 +95,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <SessionContextProvider>
-            <AppRoutes />
+            <AppContextProvider> {/* Wrap with AppContextProvider */}
+              <AppRoutes />
+            </AppContextProvider>
           </SessionContextProvider>
         </BrowserRouter>
       </TooltipProvider>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } => '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TicketForm from '@/components/TicketForm';
@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface Ticket {
   id: string;
@@ -27,72 +28,32 @@ interface Ticket {
   tasks: { title: string | null } | null; // For linked_task
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const TicketsPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
   const fetchTickets = async () => {
-    setLoading(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
+    setLoadingData(true); // Start loading for tickets specific data
 
-    if (!session) {
-      setLoading(false);
+    // Wait for session and global app settings/role to load
+    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(false);
       return;
     }
 
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
-      return;
-    }
-
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('tickets')) { // Koristimo canViewModule direktno
-      setLoading(false);
-      return;
+    // Now that appSettings and currentUserRole are loaded, check permission
+    if (!canViewModule('tickets')) {
+      setLoadingData(false);
+      return; // Not authorized
     }
 
     let query = supabase
@@ -127,12 +88,12 @@ const TicketsPage: React.FC = () => {
     } else {
       setTickets(data as Ticket[]);
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchTickets();
-  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, filterStatus, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);
@@ -165,7 +126,9 @@ const TicketsPage: React.FC = () => {
     fetchTickets();
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

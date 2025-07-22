@@ -1,21 +1,18 @@
 import { useMemo } from 'react';
+import { useAppContext } from '@/contexts/AppContext'; // Import useAppContext
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
+export const usePermissions = () => {
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
 
-type UserRole = 'client' | 'worker' | 'administrator' | null;
-
-export const usePermissions = (appSettings: AppSettings | null, currentUserRole: UserRole) => {
   const permissions = useMemo(() => {
-    if (!appSettings?.module_permissions || !currentUserRole) {
+    if (loadingAppSettings || !appSettings?.module_permissions || !currentUserRole) {
       return null;
     }
     return appSettings.module_permissions;
-  }, [appSettings, currentUserRole]);
+  }, [appSettings, currentUserRole, loadingAppSettings]);
 
   const checkPermission = (moduleName: string, action: string): boolean => {
-    if (!permissions || !currentUserRole) {
+    if (loadingAppSettings || !permissions || !currentUserRole) {
       return false;
     }
 
@@ -50,5 +47,6 @@ export const usePermissions = (appSettings: AppSettings | null, currentUserRole:
     canDelete,
     canSendMessage,
     currentUserRole, // Expose current user role for other checks if needed
+    loadingPermissions: loadingAppSettings, // Expose loading state
   };
 };

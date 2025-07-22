@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface DashboardStats {
   openTasks: number;
@@ -19,73 +20,31 @@ interface TaskStatusData {
   fill: string;
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const DashboardPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule } = usePermissions();
 
   useEffect(() => {
-    const fetchPageData = async () => {
-      setLoading(true); // Start loading for the entire page
+    const fetchDashboardData = async () => {
+      setLoadingData(true); // Start loading for dashboard specific data
 
-      if (!session) {
-        setLoading(false);
-        return; // No session, cannot fetch anything
-      }
-
-      // 1. Fetch user role
-      let role: string | null = null;
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        role = roleData.role;
-        setCurrentUserRole(roleData.role);
-      }
-
-      // 2. Fetch app settings
-      let settings: AppSettings | null = null;
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        settings = settingsData as AppSettings;
-        setAppSettings(settingsData as AppSettings);
-      }
-
-      // Ako nismo uspjeli dobiti ulogu ili postavke, ne možemo pouzdano provjeriti dozvole.
-      // U stvarnoj aplikaciji, možda biste željeli robusniju stranicu greške ili mehanizam ponovnog pokušaja.
-      // Za sada, ako se dozvole ne mogu utvrditi, pretpostavite da nema pristupa.
-      // Ovdje nećemo provjeravati canViewModule, jer se to radi izvan useEffect-a.
-      if (!role || !settings) {
-        setLoading(false);
+      // Wait for session and global app settings/role to load
+      if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+        setLoadingData(false);
         return;
       }
 
-      // Sada kada su role i settings dostupni, canViewModule će biti ažuriran.
-      // Možemo ga koristiti za uvjetno dohvaćanje podataka ako je potrebno,
-      // ali glavna provjera pristupa stranici se radi u render funkciji.
+      // Now that appSettings and currentUserRole are loaded, check permission
+      if (!canViewModule('dashboard')) {
+        setLoadingData(false);
+        return; // Not authorized
+      }
 
       let hasDataFetchError = false;
 
@@ -158,13 +117,16 @@ const DashboardPage: React.FC = () => {
           completedTasksToday: completedTasksTodayCount || 0,
         });
       }
-      setLoading(false); // End loading for the entire page
+      setLoadingData(false); // End loading for dashboard specific data
     };
 
-    fetchPageData();
-  }, [supabase, session]); // Only depend on supabase and session. All other data is fetched internally.
+    fetchDashboardData();
+  }, [supabase, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
-  if (loading) {
+  // Overall loading state for the page
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -172,8 +134,7 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  // Ova provjera sada ovisi o state varijablama `appSettings` i `currentUserRole`
-  // koje su postavljene u `useEffect` iznad. Ako je `loading` false, ove bi trebale biti popunjene.
+  // This check now correctly uses the reactive `canViewModule`
   if (!canViewModule('dashboard')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">

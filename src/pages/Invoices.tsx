@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search, Printer, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface InvoiceItem {
   id: string;
@@ -58,70 +59,30 @@ interface Invoice {
   currency: CurrencyDetails | null;
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const InvoicesPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
   const fetchInvoices = async () => {
-    setLoading(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
+    setLoadingData(true); // Start loading for invoices specific data
 
-    if (!session) {
-      setLoading(false);
+    // Wait for session and global app settings/role to load
+    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(false);
       return;
     }
 
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
-      return;
-    }
-
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('invoices')) { // Koristimo canViewModule direktno
-      setLoading(false);
+    // Now that appSettings and currentUserRole are loaded, check permission
+    if (!canViewModule('invoices')) {
+      setLoadingData(false);
       return;
     }
 
@@ -163,7 +124,7 @@ const InvoicesPage: React.FC = () => {
 
     if (error) {
       toast.error('Failed to load invoices: ' + error.message);
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
 
@@ -215,12 +176,12 @@ const InvoicesPage: React.FC = () => {
     }));
 
     setInvoices(invoicesWithDetails as Invoice[]);
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchInvoices();
-  }, [supabase, searchTerm, filterStatus, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, filterStatus, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewInvoiceClick = () => {
     navigate('/invoices/new');
@@ -275,7 +236,9 @@ const InvoicesPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />

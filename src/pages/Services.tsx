@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
 
 interface ServiceCategory {
   id: string;
@@ -33,75 +34,35 @@ interface Service {
   service_categories: { name: string } | null; // For category name
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const ServicesPage: React.FC = () => {
   const { supabase, session } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // Get from context
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true); // Consolidated loading state
+  const [loadingData, setLoadingData] = useState(true); // Separate loading for data fetching
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | undefined>(undefined);
   const [editingService, setEditingService] = useState<Service | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
 
-  // Pozivanje usePermissions hooka na vrhu komponente
-  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
+  // usePermissions now gets its dependencies from useAppContext internally
+  const { canViewModule, canCreate, canEdit, canDelete } = usePermissions();
 
   const fetchAllData = async () => {
-    setLoading(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
+    setLoadingData(true); // Start loading for all data on this page
 
-    if (!session) {
-      setLoading(false);
+    // Wait for session and global app settings/role to load
+    if (!session || loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(false);
       return;
     }
 
-    // Fetch user role
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = roleData.role;
-      setCurrentUserRole(roleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      setAppSettings(settingsData as AppSettings);
-    }
-
-    if (!currentRole || !currentSettings) {
-      setLoading(false);
-      return;
-    }
-
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('services')) { // Koristimo canViewModule direktno
-      setLoading(false);
-      return;
+    // Now that appSettings and currentUserRole are loaded, check permission
+    if (!canViewModule('services')) {
+      setLoadingData(false);
+      return; // Not authorized
     }
 
     // Fetch categories
@@ -146,12 +107,12 @@ const ServicesPage: React.FC = () => {
     } else {
       setServices(servicesData as Service[]);
     }
-    setLoading(false);
+    setLoadingData(false);
   };
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase, searchTerm, filterCategoryId, session, appSettings, currentUserRole]); // Dodati appSettings i currentUserRole kao zavisnosti
+  }, [supabase, searchTerm, filterCategoryId, session, loadingAppSettings, appSettings, currentUserRole, canViewModule]); // Dependencies now include context values and canViewModule
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -215,7 +176,9 @@ const ServicesPage: React.FC = () => {
     fetchAllData();
   };
 
-  if (loading) {
+  const overallLoading = loadingAppSettings || loadingData;
+
+  if (overallLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
