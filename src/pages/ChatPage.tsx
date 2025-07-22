@@ -1,10 +1,21 @@
-// Add to imports
+import React, { useState, useEffect } from 'react';
+import { useSession } from '@/contexts/SessionContext';
 import { useAppContext } from '@/contexts/AppContext';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle } from 'lucide-react';
+import ConversationList from '@/components/ConversationList';
+import ChatWindow from '@/components/ChatWindow';
+import NewChatForm from '@/components/NewChatForm';
 
 const ChatPage: React.FC = () => {
+  const { supabase, session } = useSession();
   const { dbConnectionError } = useAppContext();
-  
-  // ... existing code ...
+  const [conversations, setConversations] = useState([]);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // ... rest of your component logic ...
 
   if (dbConnectionError) {
     return (
@@ -24,5 +35,42 @@ const ChatPage: React.FC = () => {
     );
   }
 
-  // ... rest of the component ...
+  return (
+    <div className="flex h-full">
+      <div className="w-80 border-r">
+        <div className="p-4">
+          <Button 
+            onClick={() => setIsNewChatFormOpen(true)}
+            className="w-full"
+          >
+            New Chat
+          </Button>
+        </div>
+        <ConversationList
+          conversations={conversations}
+          selectedChatId={selectedChatId}
+          onSelectChat={setSelectedChatId}
+        />
+      </div>
+      <div className="flex-1">
+        {selectedChatId ? (
+          <ChatWindow chatId={selectedChatId} />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p>Select a chat or start a new one</p>
+          </div>
+        )}
+      </div>
+      <NewChatForm
+        isOpen={isNewChatFormOpen}
+        onClose={() => setIsNewChatFormOpen(false)}
+        onSuccess={(newChatId) => {
+          setSelectedChatId(newChatId);
+          setIsNewChatFormOpen(false);
+        }}
+      />
+    </div>
+  );
 };
+
+export default ChatPage;  // This is the crucial line that was missing
