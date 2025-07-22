@@ -5,7 +5,6 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
 import CurrencySettingsForm from '@/components/CurrencySettingsForm';
-import ModulePermissionsForm from '@/components/ModulePermissionsForm'; // Import new component
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -34,7 +33,6 @@ interface AppSettings {
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
   default_currency_id: string | null;
-  module_permissions: Record<string, Record<string, string[]>> | null; // New field
 }
 
 const SettingsPage: React.FC = () => {
@@ -194,15 +192,6 @@ const SettingsPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <CurrencySettingsForm onSuccess={fetchAppSettings} />
-              </CardContent>
-            </Card>
-
-            <Card className="lg:col-span-full">
-              <CardHeader>
-                <CardTitle>Module Permissions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ModulePermissionsForm initialPermissions={appSettings.module_permissions} onSuccess={fetchAppSettings} />
               </CardContent>
             </Card>
           </>

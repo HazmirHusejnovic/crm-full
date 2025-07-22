@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { PlusCircle } from 'lucide-react';
 import NewChatForm from '@/components/NewChatForm';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
 
 interface Chat {
   id: string;
@@ -28,10 +27,6 @@ interface EnrichedChat extends Chat {
   }>;
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const ChatPage: React.FC = () => {
   const { supabase, session } = useSession();
   const [loading, setLoading] = useState(true);
@@ -39,58 +34,26 @@ const ChatPage: React.FC = () => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null); // State for app settings
-
-  useEffect(() => {
-    const fetchSettingsAndRole = async () => {
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user role
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-      } else {
-        setCurrentUserRole(roleData.role);
-      }
-
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('module_permissions')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
-      }
-    };
-
-    fetchSettingsAndRole();
-  }, [supabase, session]);
-
-  const { canViewModule, canCreate } = usePermissions(appSettings, currentUserRole as 'client' | 'worker' | 'administrator');
 
   const fetchConversations = async () => {
     setLoading(true);
-    if (!session?.user?.id || !appSettings || !currentUserRole) {
+    if (!session?.user?.id) {
       setLoading(false);
       return;
     }
 
-    if (!canViewModule('chat')) {
+    const { data: roleData, error: roleError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (roleError) {
+      console.error('Error fetching user role:', roleError.message);
+      toast.error('Failed to fetch your user role.');
       setLoading(false);
       return;
+    } else {
+      setCurrentUserRole(roleData.role);
     }
 
     // First, fetch all chat IDs the current user is a part of
@@ -186,13 +149,15 @@ const ChatPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, session, selectedChatId, appSettings, currentUserRole, canViewModule]); // Add permission dependencies
+  }, [supabase, session, selectedChatId]);
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);
     fetchConversations();
     setSelectedChatId(newChatId);
   };
+
+  const canCreateNewChat = currentUserRole === 'worker' || currentUserRole === 'administrator';
 
   if (loading) {
     return (
@@ -202,23 +167,12 @@ const ChatPage: React.FC = () => {
     );
   }
 
-  if (!canViewModule('chat')) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">You do not have permission to view this page.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-4 flex flex-col lg:flex-row h-[calc(100vh-8rem)]">
       <Card className="w-full lg:w-1/3 flex-shrink-0 lg:mr-4 mb-4 lg:mb-0 flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Conversations</CardTitle>
-          {canCreate('chat') && (
+          {canCreateNewChat && (
             <Dialog open={isNewChatFormOpen} onOpenChange={setIsNewChatFormOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">

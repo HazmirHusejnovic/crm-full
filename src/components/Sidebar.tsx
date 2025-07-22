@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { usePermissions } from '@/hooks/usePermissions'; // Import the new hook
 
 interface NavLinkProps {
   to: string;
@@ -68,7 +67,6 @@ interface AppSettings {
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
-  module_permissions: Record<string, Record<string, string[]>> | null; // New field
 }
 
 const Sidebar: React.FC = () => {
@@ -124,8 +122,13 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  // Use the new usePermissions hook
-  const { canViewModule } = usePermissions(appSettings, userRole);
+  // Helper to check if a module is enabled AND if the user has the required role
+  const isModuleVisible = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
+    if (!appSettings || !userRole) return false;
+    const moduleEnabled = appSettings[moduleKey];
+    const userHasRequiredRole = requiredRoles.includes(userRole);
+    return moduleEnabled && userHasRequiredRole;
+  };
 
   if (loadingSettings) {
     return (
@@ -150,77 +153,77 @@ const Sidebar: React.FC = () => {
               icon={LayoutDashboard}
               label="Dashboard"
               isActive={location.pathname === '/dashboard'}
-              isVisible={canViewModule('dashboard')}
+              isVisible={isModuleVisible('module_dashboard_enabled')}
             />
             <NavLink
               to="/tasks"
               icon={ListTodo}
               label="Tasks"
               isActive={location.pathname === '/tasks'}
-              isVisible={canViewModule('tasks')}
+              isVisible={isModuleVisible('module_tasks_enabled')}
             />
             <NavLink
               to="/tickets"
               icon={Ticket}
               label="Tickets"
               isActive={location.pathname === '/tickets'}
-              isVisible={canViewModule('tickets')}
+              isVisible={isModuleVisible('module_tickets_enabled')}
             />
             <NavLink
               to="/services"
               icon={Briefcase}
               label="Services"
               isActive={location.pathname === '/services'}
-              isVisible={canViewModule('services')}
+              isVisible={isModuleVisible('module_services_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/products"
               icon={Package}
               label="Products"
               isActive={location.pathname === '/products'}
-              isVisible={canViewModule('products')}
+              isVisible={isModuleVisible('module_products_enabled', ['administrator'])}
             />
             <NavLink
               to="/pos"
               icon={ShoppingCart}
               label="POS"
               isActive={location.pathname === '/pos'}
-              isVisible={canViewModule('pos')}
+              isVisible={isModuleVisible('module_pos_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/invoices"
               icon={ReceiptText}
               label="Invoices"
               isActive={location.pathname === '/invoices'}
-              isVisible={canViewModule('invoices')}
+              isVisible={isModuleVisible('module_invoices_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/reports"
               icon={BarChart3}
               label="Reports"
               isActive={location.pathname === '/reports'}
-              isVisible={canViewModule('reports')}
+              isVisible={isModuleVisible('module_reports_enabled', ['worker', 'administrator'])}
             />
             <NavLink
               to="/wiki"
               icon={BookOpen}
               label="Wiki"
               isActive={location.pathname === '/wiki'}
-              isVisible={canViewModule('wiki')}
+              isVisible={isModuleVisible('module_wiki_enabled')}
             />
             <NavLink
               to="/chat"
               icon={MessageSquare}
               label="Chat"
               isActive={location.pathname === '/chat'}
-              isVisible={canViewModule('chat')}
+              isVisible={isModuleVisible('module_chat_enabled')}
             />
             <NavLink
               to="/users"
               icon={Users}
               label="User Management"
               isActive={location.pathname === '/users'}
-              isVisible={canViewModule('users')}
+              isVisible={isModuleVisible('module_users_enabled', ['administrator'])}
             />
           </div>
         </div>
@@ -232,14 +235,14 @@ const Sidebar: React.FC = () => {
               icon={User}
               label="My Profile"
               isActive={location.pathname === '/profile'}
-              isVisible={canViewModule('profile')}
+              isVisible={isModuleVisible('module_profile_enabled')}
             />
             <NavLink
               to="/settings"
               icon={Settings}
               label="Settings"
               isActive={location.pathname === '/settings'}
-              isVisible={canViewModule('settings')}
+              isVisible={isModuleVisible('module_settings_enabled', ['administrator'])}
             />
           </div>
         </div>
