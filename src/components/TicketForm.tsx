@@ -224,7 +224,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
+                  <SelectItem value="null-value">Unassigned</SelectItem>
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})
@@ -249,7 +249,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">No Task Linked</SelectItem> {/* Changed value */}
+                  <SelectItem value="null-value">No Task Linked</SelectItem>
                   {tasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}

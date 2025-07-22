@@ -1,18 +1,18 @@
-import React from 'react'; // Removed useState as local loadingData is now derived from context
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import CompanySettingsForm from '@/components/CompanySettingsForm';
 import FinancialSettingsForm from '@/components/FinancialSettingsForm';
 import CurrencySettingsForm from '@/components/CurrencySettingsForm';
-import ModulePermissionsForm from '@/components/ModulePermissionsForm'; // Import new component
-import { useSession } from '@/contexts/SessionContext'; // Still needed for supabase client
+import ModulePermissionsForm from '@/components/ModulePermissionsForm';
+import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { useAppContext } from '@/contexts/AppContext';
 
 interface AppSettings {
   company_name: string | null;
@@ -36,18 +36,14 @@ interface AppSettings {
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
   default_currency_id: string | null;
-  module_permissions: Record<string, Record<string, string[]>> | null; // New field
+  module_permissions: Record<string, Record<string, string[]>> | null;
 }
 
 const SettingsPage: React.FC = () => {
-  const { supabase } = useSession(); // Only need supabase for direct updates
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
+  const { supabase } = useSession();
+  const { appSettings, currentUserRole, loadingAppSettings, refreshAppSettings } = useAppContext();
 
-  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule } = usePermissions();
-
-  // Removed fetchAppSettingsAndRole and its useEffect.
-  // AppContext is responsible for fetching and providing appSettings and currentUserRole.
 
   const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
     if (!appSettings) return;
@@ -61,22 +57,14 @@ const SettingsPage: React.FC = () => {
       toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
     } else {
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
-      // Removed local setAppSettings. AppContext's useEffect will re-fetch.
+      refreshAppSettings();
     }
   };
 
-  // The onSuccess callbacks for the forms will now simply trigger a re-render of the SettingsPage
-  // (if needed, by passing a function that updates a local state, or just relying on AppContext's reactivity).
-  // For now, they will just call onSuccess?.() which is sufficient as AppContext's useEffect
-  // listens to supabase and session changes, and will re-fetch app settings.
   const handleFormSuccess = () => {
-    // This function can be used to trigger a re-render if needed,
-    // but for app settings, AppContext's useEffect should handle it.
-    // For example, if you had a local state that needed to be refreshed:
-    // setSomeLocalState(prev => !prev);
+    refreshAppSettings();
   };
 
-  // Use loadingAppSettings directly for overall loading
   if (loadingAppSettings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -85,7 +73,7 @@ const SettingsPage: React.FC = () => {
     );
   }
 
-  if (currentUserRole !== 'administrator') { // Settings page is only for administrators
+  if (currentUserRole !== 'administrator') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">

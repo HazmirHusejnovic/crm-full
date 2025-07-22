@@ -174,7 +174,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
                 />
               </FormControl>
               <div className="space-y-1 leading-none">
-                <FormLabel>
+                <FormLabel htmlFor={field.name}>
                   Skip Email Verification
                 </FormLabel>
                 <FormMessage />

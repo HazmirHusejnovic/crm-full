@@ -150,8 +150,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
+              <FormControl>
                   <SelectTrigger id={field.name}>
                     <SelectValue placeholder="Select a status" />
                   </SelectTrigger>
@@ -180,7 +179,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="null-value">Unassigned</SelectItem> {/* Changed value */}
+                  <SelectItem value="null-value">Unassigned</SelectItem>
                   {workers.map((worker) => (
                     <SelectItem key={worker.id} value={worker.id}>
                       {worker.first_name} {worker.last_name} ({worker.role})

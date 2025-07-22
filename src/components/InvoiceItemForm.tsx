@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useFormContext } from 'react-hook-form'; // Use useFormContext for nested forms
+import { useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Form, // Keep Form for context, but individual fields use FormField
+  Form,
   FormControl,
   FormField,
   FormItem,
@@ -22,7 +22,7 @@ import {
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
-import { Textarea } from './ui/textarea'; // Ensure Textarea is imported
+import { Textarea } from './ui/textarea';
 
 export const invoiceItemFormSchema = z.object({
   service_id: z.string().uuid().nullable().optional(),
@@ -68,10 +68,10 @@ interface ExchangeRate {
 interface InvoiceItemFormProps {
   index: number;
   onRemove: (index: number) => void;
-  invoiceCurrencyId: string | null; // New prop: the currency selected for the invoice
-  appDefaultCurrencyId: string | null; // New prop: the app's default currency
-  exchangeRates: ExchangeRate[]; // New prop: all available exchange rates
-  currencies: Currency[]; // New prop: all available currencies
+  invoiceCurrencyId: string | null;
+  appDefaultCurrencyId: string | null;
+  exchangeRates: ExchangeRate[];
+  currencies: Currency[];
 }
 
 const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
@@ -84,12 +84,11 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
 }) => {
   const { supabase } = useSession();
   const [services, setServices] = useState<Service[]>([]);
-  const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
-  const { control, setValue, trigger, getValues } = useFormContext(); // Get control from parent context
+  const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17);
+  const { control, setValue, trigger, getValues } = useFormContext();
 
   useEffect(() => {
     const fetchSettingsAndServices = async () => {
-      // Fetch default VAT rate
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
         .select('default_vat_rate')
@@ -98,12 +97,10 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
 
       if (settingsError) {
         console.error('Failed to load default VAT rate from settings:', settingsError.message);
-        // Fallback to hardcoded default if settings not found
       } else if (settingsData) {
         setDefaultVatRate(settingsData.default_vat_rate);
       }
 
-      // Fetch services
       const { data, error } = await supabase
         .from('services')
         .select('id, name, description, default_price, vat_rate');
@@ -117,10 +114,8 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
     fetchSettingsAndServices();
   }, [supabase]);
 
-  // Set default VAT rate for new items if it changes
   useEffect(() => {
     const currentVatRate = getValues(`items.${index}.vat_rate`);
-    // Only set if it's a new item (no service_id selected yet) and current VAT is 0 or default
     if (!getValues(`items.${index}.service_id`) && (currentVatRate === 0 || currentVatRate === 0.17)) {
       setValue(`items.${index}.vat_rate`, defaultVatRate);
     }
@@ -140,7 +135,6 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
     }
     const rate = getExchangeRate(fromCurrencyId, toCurrencyId);
     if (rate === 0) {
-      // Fallback to original price if no rate, and show a warning
       console.warn(`No exchange rate found from ${fromCurrencyId} to ${toCurrencyId}. Using original price.`);
       return price;
     }
@@ -153,16 +147,15 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
       setValue(`items.${index}.description`, '');
       setValue(`items.${index}.quantity`, 1);
       setValue(`items.${index}.unit_price`, 0);
-      setValue(`items.${index}.vat_rate`, defaultVatRate); // Use default VAT for custom
+      setValue(`items.${index}.vat_rate`, defaultVatRate);
     } else {
       const selectedService = services.find(s => s.id === serviceId);
       if (selectedService) {
         setValue(`items.${index}.service_id`, selectedService.id);
         setValue(`items.${index}.description`, selectedService.name || '');
-        // Convert service's default_price from app default currency to invoice currency
         const convertedPrice = convertPrice(
           selectedService.default_price || 0,
-          appDefaultCurrencyId || '', // Services prices are assumed to be in app's default currency
+          appDefaultCurrencyId || '',
           invoiceCurrencyId || ''
         );
         setValue(`items.${index}.unit_price`, convertedPrice);
@@ -170,7 +163,6 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
         setValue(`items.${index}.quantity`, 1);
       }
     }
-    // Trigger validation for the updated fields
     trigger([
       `items.${index}.service_id`,
       `items.${index}.description`,
@@ -182,7 +174,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
 
   const getCurrencySymbol = (currencyId: string | null): string => {
     const currency = currencies.find(c => c.id === currencyId);
-    return currency ? currency.symbol : '$'; // Default to $ if not found
+    return currency ? currency.symbol : '$';
   };
 
   const currentCurrencySymbol = getCurrencySymbol(invoiceCurrencyId);

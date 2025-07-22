@@ -190,7 +190,7 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
                         <UploadCloud className="h-8 w-8 text-muted-foreground" />
                       )}
                       <Input
-                        id="logo-upload" // This ID is explicitly set and matched by the label's htmlFor
+                        id="logo-upload"
                         type="file"
                         accept="image/*"
                         className="hidden"

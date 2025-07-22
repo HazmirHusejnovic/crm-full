@@ -243,7 +243,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                   <FormItem className="flex-1">
                     <FormLabel>Code (e.g., BAM)</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input id={field.name} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -256,7 +256,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                   <FormItem className="flex-1">
                     <FormLabel>Name (e.g., Bosnian Mark)</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input id={field.name} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -269,7 +269,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                   <FormItem className="flex-1">
                     <FormLabel>Symbol (e.g., KM)</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input id={field.name} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -327,7 +327,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                     <FormLabel>From Currency</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger id={field.name}>
                           <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                       </FormControl>
@@ -351,7 +351,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                     <FormLabel>To Currency</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger id={field.name}>
                           <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                       </FormControl>
@@ -374,7 +374,7 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                   <FormItem className="flex-1">
                     <FormLabel>Rate</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.000001" placeholder="1.00" {...field} onChange={e => field.onChange(e.target.value)} />
+                      <Input id={field.name} type="number" step="0.000001" placeholder="1.00" {...field} onChange={e => field.onChange(e.target.value)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

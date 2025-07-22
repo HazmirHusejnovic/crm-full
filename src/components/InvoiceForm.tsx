@@ -290,7 +290,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
   }
 
   return (
-    <FormProvider {...form}> {/* Wrap the form with FormProvider */}
+    <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
@@ -413,10 +413,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
               key={item.id}
               index={index}
               onRemove={remove}
-              invoiceCurrencyId={currentInvoiceCurrencyId} // Pass invoice currency
-              appDefaultCurrencyId={appDefaultCurrencyId} // Pass app default currency
-              exchangeRates={exchangeRates} // Pass exchange rates
-              currencies={currencies} // Pass currencies for symbol lookup
+              invoiceCurrencyId={currentInvoiceCurrencyId}
+              appDefaultCurrencyId={appDefaultCurrencyId}
+              exchangeRates={exchangeRates}
+              currencies={currencies}
             />
           ))}
         </div>
