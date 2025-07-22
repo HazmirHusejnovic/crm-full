@@ -1,5 +1,15 @@
-// Either use default import:
-import NewChatForm from '@/components/NewChatForm';
+import React from 'react';
+// ... other imports ...
 
-// Or named import (if you prefer):
-// import { NewChatForm } from '@/components/NewChatForm';
+const ChatPage = () => {
+  // ... component implementation ...
+  return (
+    // ... JSX ...
+  );
+};
+
+// Add this default export
+export default ChatPage;
+
+// Keep named export if needed
+export { ChatPage };
