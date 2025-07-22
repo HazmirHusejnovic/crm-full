@@ -11,8 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
 import InvoiceForm from '@/components/InvoiceForm';
-import { usePermissions } from '@/hooks/usePermissions'; // Import usePermissions
-import { useAppContext } from '@/contexts/AppContext'; // NEW: Import useAppContext
+import { usePermissions } from '@/hooks/usePermissions';
+import { useAppContext } from '@/contexts/AppContext';
 
 interface ClientProfile {
   id: string;
@@ -66,10 +66,6 @@ interface ClientInvoice {
   creator_profile_details: CreatorProfileDetails | null;
 }
 
-interface AppSettings {
-  module_permissions: Record<string, Record<string, string[]>> | null;
-}
-
 const ClientDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -79,66 +75,30 @@ const ClientDetailsPage: React.FC = () => {
   const [clientTickets, setClientTickets] = useState<ClientTicket[]>([]);
   const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext(); // State for app settings
+  const { appSettings, currentUserRole, loadingAppSettings } = useAppContext();
 
-  // State for dialogs
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
 
-  // Pozivanje usePermissions hooka na vrhu komponente
   const { canViewModule, canCreate } = usePermissions();
 
   const fetchData = async () => {
     setLoadingData(true);
-    let currentRole: string | null = null;
-    let currentSettings: AppSettings | null = null;
 
     if (!session?.user?.id || !id) {
       setLoadingData(false);
       return;
     }
 
-    // Fetch user role
-    const { data: userRoleData, error: userRoleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (userRoleError) {
-      console.error('Error fetching current user role:', userRoleError.message);
-      toast.error('Failed to fetch your user role.');
-    } else {
-      currentRole = userRoleData.role;
-      // Removed: setCurrentUserRole(userRoleData.role);
-    }
-
-    // Fetch app settings
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('module_permissions')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (settingsError) {
-      console.error('Error fetching app settings:', settingsError.message);
-      toast.error('Failed to load app settings.');
-    } else {
-      currentSettings = settingsData as AppSettings;
-      // Removed: setAppSettings(settingsData as AppSettings);
-    }
-
-    // Use the `currentUserRole` and `appSettings` from context directly,
-    // as they are updated by the AppContextProvider's useEffect.
-    // The local `currentRole` and `currentSettings` are for immediate use within this function.
-    if (loadingAppSettings || !appSettings || !currentUserRole) { // Use values from context
-      setLoadingData(true); // Still loading global data
+    // Wait for global app settings and user role to load from AppContext
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Keep local loading state true while global context is loading
       return;
     }
 
-    // Provjera dozvola se sada radi preko `canViewModule` koji je definisan na vrhu komponente
-    if (!canViewModule('users')) { // Koristimo canViewModule direktno
+    // Now that global data is loaded, check permissions
+    if (!canViewModule('users')) {
       setLoadingData(false);
       return;
     }
@@ -181,6 +141,7 @@ const ClientDetailsPage: React.FC = () => {
       .select(`
           id,
           title,
+          description,
           status,
           due_date,
           created_at,
@@ -205,6 +166,7 @@ const ClientDetailsPage: React.FC = () => {
       .select(`
           id,
           subject,
+          description,
           status,
           priority,
           created_at,
@@ -271,8 +233,13 @@ const ClientDetailsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // Only proceed if global app settings and user role are loaded and available
+    if (loadingAppSettings || !appSettings || !currentUserRole) {
+      setLoadingData(true); // Keep local loading state true while global context is loading
+      return;
+    }
     fetchData();
-  }, [id, supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]); // Dependencies now include context values and canViewModule
+  }, [id, supabase, session, appSettings, currentUserRole, loadingAppSettings, canViewModule]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -318,7 +285,7 @@ const ClientDetailsPage: React.FC = () => {
     );
   }
 
-  if (!canViewModule('users')) { // Assuming client details page is part of user management module
+  if (!canViewModule('users')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -508,7 +475,7 @@ const ClientDetailsPage: React.FC = () => {
                       {task.due_date && (
                         <p>Due Date: {format(new Date(task.due_date), 'PPP')}</p>
                       )}
-                      <p>Created At: {format(new Date(task.created_at), 'PPP')}</p>
+                      <p>Created At: {format(new Date(task.created_at), 'PPP p')}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -543,7 +510,7 @@ const ClientDetailsPage: React.FC = () => {
                       {ticket.linked_task_id && (
                         <p>Linked Task: {ticket.tasks?.title}</p>
                       )}
-                      <p>Created At: {format(new Date(ticket.created_at), 'PPP')}</p>
+                      <p>Created At: {format(new Date(ticket.created_at), 'PPP p')}</p>
                     </CardContent>
                   </Card>
                 ))}
