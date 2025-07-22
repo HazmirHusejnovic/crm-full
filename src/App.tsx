@@ -1,17 +1,7 @@
-// ... postojeći imports ...
+import React from 'react';
+import { RouterProvider } from 'react-router-dom';
+import { router } from './router';
 
-const router = createBrowserRouter(
-  createRoutesFromElements(
-    <Route>
-      {/* Your routes here */}
-    </Route>
-  ),
-  {
-    future: {
-      v7_startTransition: true,
-      v7_relativeSplatPath: true,
-    }
-  }
-);
-
-// ... ostatak koda ...
+export const App = () => {
+  return <RouterProvider router={router} />;
+};
