@@ -1,16 +1,23 @@
-import React from 'react';
+import { BrowserRouter as Router } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import MainLayout from '@/components/MainLayout';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { SessionProvider } from '@/contexts/SessionContext';
+import { AppProvider } from '@/contexts/AppContext';
 
-export default function App() {
+function App() {
   return (
-    <div className="app">
-      <h1>Welcome to My React App</h1>
-      <p>Start building your application here.</p>
-      <button 
-        onClick={() => alert('Button clicked!')}
-        style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
-      >
-        Click Me
-      </button>
-    </div>
+    <ThemeProvider>
+      <SessionProvider>
+        <AppProvider>
+          <Router>
+            <MainLayout />
+            <Toaster richColors />
+          </Router>
+        </AppProvider>
+      </SessionProvider>
+    </ThemeProvider>
   );
 }
+
+export default App;
