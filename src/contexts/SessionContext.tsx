@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@/lib/api'; // Import the new API client
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
 
 interface User {
   id: string;
@@ -9,7 +9,6 @@ interface User {
   role: string;
   first_name?: string | null;
   last_name?: string | null;
-  // Add any other user properties returned by your backend
 }
 
 interface SessionContextType {
@@ -20,116 +19,187 @@ interface SessionContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
-  fetchUserRole: () => Promise<string | null>; // Expose for App.tsx/Sidebar.tsx
+  fetchUserRole: () => Promise<string | null>;
+  supabase: typeof supabase; // Provide the supabase client
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('jwt_token'));
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchUserProfile = useCallback(async (jwtToken: string) => {
-    try {
-      // Assuming your /users endpoint can return the current user's profile
-      // Or you might need a specific /auth/me endpoint if your backend provides one
-      // For now, let's assume /users endpoint can filter by ID or you have a way to get current user's ID from token
-      // Given the schema, the user object from login/register should contain enough info.
-      // If not, we'd need a /auth/me endpoint. For now, we'll rely on the user object from login/register.
-      // If the token is valid, we assume the user is authenticated.
-      // The backend should return user details upon successful login/register.
-      // For simplicity, we'll store the user object directly from login/register response.
-      // If you need to re-fetch user details on app load, you'd need a /auth/me endpoint.
-      // For now, we'll just check if a token exists.
-      const storedUser = localStorage.getItem('user_profile');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      } else {
-        // If no stored user, and token exists, we might need to fetch it.
-        // This is a potential gap if /auth/login doesn't return full user profile.
-        // For now, we'll assume the user object is stored on login/register.
-      }
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      // If fetching profile fails, token might be invalid, so log out
-      logout();
-    } finally {
+  const fetchSessionAndProfile = useCallback(async () => {
+    setIsLoading(true);
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error('Error fetching session:', sessionError.message);
+      setToken(null);
+      setUser(null);
       setIsLoading(false);
+      return;
     }
+
+    if (session) {
+      setToken(session.access_token);
+      // Fetch user profile from public.profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles_with_auth_emails') // Use the view that includes email
+        .select('id, first_name, last_name, role, email')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError.message);
+        // If profile not found, it might be a new user, or an issue.
+        // For now, we'll set a basic user from auth session.
+        setUser({
+          id: session.user.id,
+          email: session.user.email || 'N/A',
+          role: 'client', // Default role if profile not found
+          first_name: null,
+          last_name: null,
+        });
+      } else if (profileData) {
+        setUser({
+          id: profileData.id,
+          email: profileData.email || 'N/A',
+          role: profileData.role,
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+        });
+      }
+    } else {
+      setToken(null);
+      setUser(null);
+    }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    if (token) {
-      fetchUserProfile(token);
-    } else {
-      setIsLoading(false);
-      navigate('/login');
-    }
-  }, [token, fetchUserProfile, navigate]);
+    fetchSessionAndProfile();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setToken(session.access_token);
+        // Re-fetch profile on auth state change (e.g., login, user update)
+        supabase
+          .from('profiles_with_auth_emails')
+          .select('id, first_name, last_name, role, email')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profileData, error: profileError }) => {
+            if (profileError) {
+              console.error('Error fetching user profile on auth state change:', profileError.message);
+              setUser({
+                id: session.user.id,
+                email: session.user.email || 'N/A',
+                role: 'client',
+                first_name: null,
+                last_name: null,
+              });
+            } else if (profileData) {
+              setUser({
+                id: profileData.id,
+                email: profileData.email || 'N/A',
+                role: profileData.role,
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+              });
+            }
+          });
+      } else {
+        setToken(null);
+        setUser(null);
+        navigate('/login');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchSessionAndProfile, navigate]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    try {
-      const response = await api.post<{ token: string; user: User }>('/auth/login', { email, password }, null, true);
-      localStorage.setItem('jwt_token', response.token);
-      localStorage.setItem('user_profile', JSON.stringify(response.user));
-      setToken(response.token);
-      setUser(response.user);
-      toast.success('Logged in successfully!');
-      navigate('/'); // Redirect to home/dashboard
-    } catch (error: any) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
       toast.error('Login failed: ' + error.message);
-      throw error; // Re-throw to allow form to handle errors
-    } finally {
       setIsLoading(false);
+      throw error;
     }
+    if (data.session) {
+      setToken(data.session.access_token);
+      // Profile will be fetched by onAuthStateChange listener
+      toast.success('Logged in successfully!');
+      navigate('/');
+    }
+    setIsLoading(false);
   };
 
   const register = async (name: string, email: string, password: string, role: string) => {
     setIsLoading(true);
-    try {
-      const response = await api.post<{ token: string; user: User }>('/auth/register', { name, email, password, role }, null, true);
-      localStorage.setItem('jwt_token', response.token);
-      localStorage.setItem('user_profile', JSON.stringify(response.user));
-      setToken(response.token);
-      setUser(response.user);
-      toast.success('Registration successful! You are now logged in.');
-      navigate('/'); // Redirect to home/dashboard
-    } catch (error: any) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: name.split(' ')[0] || null,
+          last_name: name.split(' ').slice(1).join(' ') || null,
+          role: role,
+        },
+      },
+    });
+
+    if (error) {
       toast.error('Registration failed: ' + error.message);
-      throw error;
-    } finally {
       setIsLoading(false);
+      throw error;
     }
+    if (data.session) {
+      setToken(data.session.access_token);
+      // Profile will be fetched by onAuthStateChange listener
+      toast.success('Registration successful! You are now logged in.');
+      navigate('/');
+    } else if (data.user && !data.session) {
+      // User created but email confirmation needed
+      toast.info('Registration successful! Please check your email to confirm your account.');
+      navigate('/login'); // Redirect to login to wait for confirmation
+    }
+    setIsLoading(false);
   };
 
-  const logout = () => {
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('user_profile');
-    setToken(null);
-    setUser(null);
-    toast.success('Logged out successfully!');
-    navigate('/login');
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error('Logout failed: ' + error.message);
+    } else {
+      toast.success('Logged out successfully!');
+      setToken(null);
+      setUser(null);
+      navigate('/login');
+    }
   };
 
   const fetchUserRole = useCallback(async (): Promise<string | null> => {
-    if (!user?.id || !token) return null;
-    try {
-      // Assuming /users/:id returns the profile with role
-      const profile = await api.get<User>(`/users/${user.id}`, token);
-      setUser(prev => prev ? { ...prev, role: profile.role } : profile); // Update local user state
-      return profile.role;
-    } catch (error) {
-      console.error('Failed to fetch user role:', error);
+    if (!user?.id) return null;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (error) {
+      console.error('Failed to fetch user role:', error.message);
       toast.error('Failed to fetch user role.');
       return null;
     }
-  }, [user?.id, token]);
+    setUser(prev => prev ? { ...prev, role: data.role } : null); // Update local user state
+    return data.role;
+  }, [user?.id]);
 
   return (
-    <SessionContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!user, isLoading, fetchUserRole }}>
+    <SessionContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!user, isLoading, fetchUserRole, supabase }}>
       {isLoading ? (
         <div className="flex items-center justify-center min-h-screen">Loading application...</div>
       ) : (

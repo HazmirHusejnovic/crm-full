@@ -19,18 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionContext';
-import { api } from '@/lib/api'; // Import the new API client
 
 const userCreateFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  role: z.enum(['client', 'worker', 'administrator'], { message: 'Role is required.' }), // Changed 'administrator' to 'admin' based on backend spec
-  // skip_email_verification: z.boolean().optional().default(false), // This is a Supabase-specific field, remove for custom backend
+  role: z.enum(['client', 'worker', 'administrator'], { message: 'Role is required.' }),
 });
 
 type UserCreateFormValues = z.infer<typeof userCreateFormSchema>;
@@ -40,7 +37,7 @@ interface UserCreateFormProps {
 }
 
 const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
-  const { token } = useSession(); // Get token from session context
+  const { supabase, user } = useSession(); // Get supabase client and current user from session context
 
   const form = useForm<UserCreateFormValues>({
     resolver: zodResolver(userCreateFormSchema),
@@ -50,41 +47,41 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
       first_name: '',
       last_name: '',
       role: 'client', // Default role
-      // skip_email_verification: false, // Remove this field
     },
   });
 
   const onSubmit = async (values: UserCreateFormValues) => {
-    if (!token) {
-      toast.error('User not authenticated.');
+    if (!user?.id) {
+      toast.error('Current user not authenticated.');
       return;
     }
 
     try {
-      // Use the register endpoint for creating new users, passing name, email, password, and role
-      // Assuming 'name' in register body can be derived from first_name and last_name, or is a combined field.
-      // Based on your example: "name": "Admin", so we'll combine first_name and last_name.
-      const fullName = `${values.first_name || ''} ${values.last_name || ''}`.trim();
-      if (!fullName) {
-        toast.error('First Name or Last Name is required for user name.');
-        return;
+      // Create user via Supabase Admin API (requires service role key on backend or RLS policy)
+      // For client-side, we use `supabase.auth.signUp` which creates the user and handles profile insertion via trigger.
+      const { data, error } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: {
+            first_name: values.first_name,
+            last_name: values.last_name,
+            role: values.role,
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      await api.post(
-        '/auth/register',
-        {
-          name: fullName,
-          email: values.email,
-          password: values.password,
-          role: values.role,
-        },
-        token, // Pass the current admin's token for authorization
-        false // This is not an auth endpoint for the *current* user, but for creating *another* user
-      );
-
-      toast.success('User created successfully!');
-      form.reset();
-      onSuccess?.();
+      if (data.user) {
+        toast.success('User created successfully! An email confirmation might be sent.');
+        form.reset();
+        onSuccess?.();
+      } else {
+        toast.error('Failed to create user: No user data returned.');
+      }
     } catch (error: any) {
       toast.error('Error creating user: ' + error.message);
     }
@@ -167,7 +164,6 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
             </FormItem>
           )}
         />
-        {/* Removed skip_email_verification as it's Supabase specific */}
         <Button type="submit" className="w-full">Create User</Button>
       </form>
     </Form>

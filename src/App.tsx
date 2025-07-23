@@ -28,9 +28,6 @@ import MainLayout from "./components/MainLayout";
 import React, { useEffect, useState } from "react";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { toast } from "sonner";
-import { api } from "./lib/api"; // Import the new API client
-
-const queryClient = new QueryClient();
 
 interface AppSettings {
   module_dashboard_enabled: boolean;
@@ -49,59 +46,54 @@ interface AppSettings {
   // Add other settings fields if they exist in your app_settings table
 }
 
+const queryClient = new QueryClient();
+
 // Component to fetch settings and conditionally render routes
 const AppRoutes = () => {
-  const { user, isAuthenticated, isLoading, fetchUserRole, token } = useSession();
+  const { user, isAuthenticated, isLoading, fetchUserRole, supabase } = useSession();
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
-  console.log("AppRoutes: Initial render. isAuthenticated:", isAuthenticated, "isLoading (context):", isLoading, "loadingSettings (local):", loadingSettings);
-
   useEffect(() => {
-    console.log("AppRoutes useEffect triggered. isAuthenticated:", isAuthenticated, "isLoading (context):", isLoading, "loadingSettings (local):", loadingSettings);
-
     const loadSettingsAndRole = async () => {
-      console.log("loadSettingsAndRole: Starting...");
       setLoadingSettings(true);
-      console.log("loadSettingsAndRole: setLoadingSettings(true)");
 
-      if (!isAuthenticated || !token) {
-        console.log("loadSettingsAndRole: Not authenticated or token missing. isAuthenticated:", isAuthenticated, "token:", !!token);
+      if (!isAuthenticated || !user?.id) {
         setLoadingSettings(false);
         return;
       }
 
-      // Fetch app settings
+      // Fetch app settings using Supabase client
       try {
-        console.log("loadSettingsAndRole: Fetching app settings...");
-        const settingsData = await api.get<AppSettings>('/app-settings', token);
-        setAppSettings(settingsData);
-        console.log("loadSettingsAndRole: App settings fetched successfully:", settingsData);
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('*')
+          .eq('id', '00000000-0000-0000-0000-000000000001')
+          .single();
+
+        if (error) {
+          console.error('Error fetching app settings:', error.message);
+          toast.error('Failed to load app settings for routing.');
+        } else {
+          setAppSettings(data as AppSettings);
+        }
       } catch (error: any) {
-        console.error('loadSettingsAndRole: Error fetching app settings:', error.message);
-        toast.error('Failed to load app settings for routing.');
-        // Decide if this error should prevent further loading or just log
-        // For now, we'll let it continue to fetch role, but it might lead to issues if settings are critical.
+        console.error('Unexpected error fetching app settings:', error.message);
+        toast.error('An unexpected error occurred while loading app settings.');
       }
 
       // Fetch user role
-      console.log("loadSettingsAndRole: Fetching user role...");
       const role = await fetchUserRole();
       setCurrentUserRole(role);
-      console.log("loadSettingsAndRole: User role fetched:", role);
 
       setLoadingSettings(false);
-      console.log("loadSettingsAndRole: setLoadingSettings(false). Finished.");
     };
 
     if (!isLoading) { // Only load settings and role once session loading is complete
-      console.log("AppRoutes useEffect: Session loading complete, calling loadSettingsAndRole.");
       loadSettingsAndRole();
-    } else {
-      console.log("AppRoutes useEffect: Session still loading, waiting...");
     }
-  }, [isAuthenticated, isLoading, fetchUserRole, token]); // Dependencies
+  }, [isAuthenticated, isLoading, fetchUserRole, user?.id, supabase]);
 
   // Helper function to check if a module is enabled and if user has permission
   const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
@@ -151,9 +143,6 @@ const AppRoutes = () => {
         {isModuleEnabled('module_settings_enabled', ['administrator']) && <Route path="/settings" element={<SettingsPage />} />}
         {isModuleEnabled('module_wiki_enabled') && <Route path="/wiki" element={<WikiPage />} />}
         {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />}
-
-        {/* Redirect to dashboard if root path is accessed and user is logged in */}
-        {/* REMOVED: isAuthenticated && <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
       </Route>
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
