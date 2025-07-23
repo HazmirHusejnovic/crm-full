@@ -1,8 +1,9 @@
+"use client";
+
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
@@ -112,7 +113,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
           name="first_name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>First Name</FormLabel>
+              <FormLabel>First Name</Label>
               <FormControl>
                 <Input placeholder="John" {...field} value={field.value || ''} />
               </FormControl>
@@ -125,7 +126,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
           name="last_name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Last Name</FormLabel>
+              <FormLabel>Last Name</Label>
               <FormControl>
                 <Input placeholder="Doe" {...field} value={field.value || ''} />
               </FormControl>
