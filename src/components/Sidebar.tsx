@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { api } from '@/lib/api'; // Import the new API client
 
 interface NavLinkProps {
   to: string;
@@ -70,67 +71,49 @@ interface AppSettings {
 }
 
 const Sidebar: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { logout, user, isAuthenticated, isLoading, fetchUserRole, token } = useSession();
   const location = useLocation();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
+    const loadSettingsAndRole = async () => {
       setLoadingSettings(true);
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
+      if (!isAuthenticated || !token) {
+        setLoadingSettings(false);
+        return;
+      }
 
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
+      // Fetch app settings
+      try {
+        const settingsData = await api.get<AppSettings>('/app-settings', token);
+        setAppSettings(settingsData);
+      } catch (error: any) {
+        console.error('Error fetching app settings:', error.message);
         toast.error('Failed to load app settings.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
       }
 
       // Fetch user role
-      if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch user role.');
-        } else {
-          setUserRole(roleData.role);
-        }
-      }
+      const role = await fetchUserRole();
+      setUserRole(role);
       setLoadingSettings(false);
     };
 
-    fetchSettingsAndRole();
-  }, [session, supabase]);
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error('Logout failed: ' + error.message);
-    } else {
-      toast.success('Logged out successfully!');
+    if (!isLoading) { // Only load settings and role once session loading is complete
+      loadSettingsAndRole();
     }
-  };
+  }, [isAuthenticated, isLoading, fetchUserRole, token]);
 
   // Helper to check if a module is enabled AND if the user has the required role
   const isModuleVisible = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
-    if (!appSettings || !userRole) return false;
+    if (!appSettings || !isAuthenticated || !userRole) return false;
     const moduleEnabled = appSettings[moduleKey];
     const userHasRequiredRole = requiredRoles.includes(userRole);
     return moduleEnabled && userHasRequiredRole;
   };
 
-  if (loadingSettings) {
+  if (isLoading || loadingSettings) {
     return (
       <div className="flex h-full max-h-screen flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground items-center justify-center">
         <LoadingSpinner size={32} />
@@ -252,7 +235,7 @@ const Sidebar: React.FC = () => {
         <Button
           variant="ghost"
           className="w-full justify-start text-red-500 hover:text-red-600"
-          onClick={handleLogout}
+          onClick={logout}
         >
           <LogOut className="mr-2 h-4 w-4" />
           Logout

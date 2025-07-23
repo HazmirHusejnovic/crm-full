@@ -19,17 +19,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox'; // Import Checkbox
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionContext';
+import { api } from '@/lib/api'; // Import the new API client
 
 const userCreateFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  role: z.enum(['client', 'worker', 'administrator'], { message: 'Role is required.' }),
-  skip_email_verification: z.boolean().optional().default(false), // New field
+  role: z.enum(['client', 'worker', 'admin'], { message: 'Role is required.' }), // Changed 'administrator' to 'admin' based on backend spec
+  // skip_email_verification: z.boolean().optional().default(false), // This is a Supabase-specific field, remove for custom backend
 });
 
 type UserCreateFormValues = z.infer<typeof userCreateFormSchema>;
@@ -39,7 +40,7 @@ interface UserCreateFormProps {
 }
 
 const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
-  const { session } = useSession();
+  const { token } = useSession(); // Get token from session context
 
   const form = useForm<UserCreateFormValues>({
     resolver: zodResolver(userCreateFormSchema),
@@ -49,32 +50,37 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
       first_name: '',
       last_name: '',
       role: 'client', // Default role
-      skip_email_verification: false, // Default to false
+      // skip_email_verification: false, // Remove this field
     },
   });
 
   const onSubmit = async (values: UserCreateFormValues) => {
-    if (!session?.user?.id) {
+    if (!token) {
       toast.error('User not authenticated.');
       return;
     }
 
     try {
-      const response = await fetch('https://ulkesgvggxkopvwnaqju.supabase.co/functions/v1/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(values),
-      });
-
-      const result = await response.json();
-
-      // Check for non-OK response status OR an error message in the result payload
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to create user.');
+      // Use the register endpoint for creating new users, passing name, email, password, and role
+      // Assuming 'name' in register body can be derived from first_name and last_name, or is a combined field.
+      // Based on your example: "name": "Admin", so we'll combine first_name and last_name.
+      const fullName = `${values.first_name || ''} ${values.last_name || ''}`.trim();
+      if (!fullName) {
+        toast.error('First Name or Last Name is required for user name.');
+        return;
       }
+
+      await api.post(
+        '/auth/register',
+        {
+          name: fullName,
+          email: values.email,
+          password: values.password,
+          role: values.role,
+        },
+        token, // Pass the current admin's token for authorization
+        false // This is not an auth endpoint for the *current* user, but for creating *another* user
+      );
 
       toast.success('User created successfully!');
       form.reset();
@@ -154,33 +160,14 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
                 <SelectContent>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="worker">Worker</SelectItem>
-                  <SelectItem value="administrator">Administrator</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="skip_email_verification"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>
-                  Skip Email Verification
-                </FormLabel>
-                <FormMessage />
-              </div>
-            </FormItem>
-          )}
-        />
+        {/* Removed skip_email_verification as it's Supabase specific */}
         <Button type="submit" className="w-full">Create User</Button>
       </form>
     </Form>

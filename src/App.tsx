@@ -28,6 +28,7 @@ import MainLayout from "./components/MainLayout";
 import React, { useEffect, useState } from "react";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { toast } from "sonner";
+import { api } from "./lib/api"; // Import the new API client
 
 const queryClient = new QueryClient();
 
@@ -45,64 +46,55 @@ interface AppSettings {
   module_settings_enabled: boolean;
   module_wiki_enabled: boolean;
   module_chat_enabled: boolean;
+  // Add other settings fields if they exist in your app_settings table
 }
 
 // Component to fetch settings and conditionally render routes
 const AppRoutes = () => {
-  const { supabase, session } = useSession();
+  const { user, isAuthenticated, isLoading, fetchUserRole, token } = useSession();
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchSettingsAndRole = async () => {
+    const loadSettingsAndRole = async () => {
       setLoadingSettings(true);
-      // Fetch app settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
+      if (!isAuthenticated || !token) {
+        setLoadingSettings(false);
+        return;
+      }
 
-      if (settingsError) {
-        console.error('Error fetching app settings:', settingsError.message);
+      // Fetch app settings
+      try {
+        const settingsData = await api.get<AppSettings>('/app-settings', token);
+        setAppSettings(settingsData);
+      } catch (error: any) {
+        console.error('Error fetching app settings:', error.message);
         toast.error('Failed to load app settings for routing.');
-      } else {
-        setAppSettings(settingsData as AppSettings);
       }
 
       // Fetch user role
-      if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch user role for routing.');
-        } else {
-          setCurrentUserRole(roleData.role); // Corrected from data.role to roleData.role
-        }
-      }
+      const role = await fetchUserRole();
+      setCurrentUserRole(role);
       setLoadingSettings(false);
     };
 
-    fetchSettingsAndRole();
-  }, [session, supabase]);
+    if (!isLoading) { // Only load settings and role once session loading is complete
+      loadSettingsAndRole();
+    }
+  }, [isAuthenticated, isLoading, fetchUserRole, token]);
 
   // Helper function to check if a module is enabled and if user has permission
   const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
-    if (!appSettings) return false; // Should not happen if loading is complete
-    if (!session || !currentUserRole) return false; // User must be logged in and role fetched
+    if (!appSettings || !isAuthenticated || !currentUserRole) return false;
 
     const moduleEnabled = appSettings[moduleKey];
     const userHasRequiredRole = requiredRoles.includes(currentUserRole);
 
-    return moduleEnabled && userHasRequiredRole; // Corrected from userHasRequiredRequiredRole to userHasRequiredRole
+    return moduleEnabled && userHasRequiredRole;
   };
 
-  if (loadingSettings) {
+  if (isLoading || loadingSettings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
@@ -142,7 +134,7 @@ const AppRoutes = () => {
         {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />}
 
         {/* Redirect to dashboard if root path is accessed and user is logged in */}
-        {session && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
+        {isAuthenticated && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
       </Route>
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
