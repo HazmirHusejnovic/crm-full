@@ -8,15 +8,11 @@ import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MainLayout: React.FC = () => {
-  const { supabase } = useSession();
+  const { logout } = useSession(); // Koristimo novu logout funkciju iz SessionContext-a
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error('Logout failed: ' + error.message);
-    } else {
-      toast.success('Logged out successfully!');
-    }
+    // logout funkcija iz SessionContext-a već rukuje toast notifikacijama i navigacijom
+    logout();
   };
 
   return (
