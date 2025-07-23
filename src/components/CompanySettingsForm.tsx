@@ -17,6 +17,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { UploadCloud, Image, XCircle } from 'lucide-react'; // Icons for upload and image preview
 import LoadingSpinner from './LoadingSpinner'; // Assuming you have a LoadingSpinner component
+import api from '@/lib/api'; // Import novog API klijenta
 
 const companySettingsSchema = z.object({
   company_name: z.string().min(1, { message: 'Company name is required.' }).optional().nullable(),
@@ -35,7 +36,7 @@ interface CompanySettingsFormProps {
 }
 
 const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [uploading, setUploading] = useState(false);
 
   const form = useForm<CompanySettingsFormValues>({
@@ -50,9 +51,6 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
     },
   });
 
-  // Removed the problematic useEffect that caused re-renders.
-  // The defaultValues in useForm are sufficient for initial load and updates.
-
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
       toast.error('You must select an image to upload.');
@@ -60,47 +58,45 @@ const CompanySettingsForm: React.FC<CompanySettingsFormProps> = ({ initialData, 
     }
 
     const file = event.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `public/${fileName}`; // Store in a 'public' folder within the bucket
+    const formData = new FormData();
+    formData.append('logo', file);
 
     setUploading(true);
-    const { error: uploadError } = await supabase.storage
-      .from('app-logos') // Ensure this bucket exists and has RLS policies
-      .upload(filePath, file);
+    try {
+      // Pretpostavljena ruta za upload logotipa
+      const response = await api.post('/upload/logo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const { publicUrl } = response.data; // Pretpostavljamo da API vraća publicUrl
 
-    if (uploadError) {
-      toast.error('Error uploading logo: ' + uploadError.message);
-    } else {
-      const { data } = supabase.storage.from('app-logos').getPublicUrl(filePath);
-      if (data?.publicUrl) {
-        form.setValue('company_logo_url', data.publicUrl);
+      if (publicUrl) {
+        form.setValue('company_logo_url', publicUrl);
         toast.success('Logo uploaded successfully!');
       } else {
         toast.error('Failed to get public URL for logo.');
       }
+    } catch (err: any) {
+      toast.error('Error uploading logo: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const handleRemoveLogo = () => {
     form.setValue('company_logo_url', null);
-    // Optionally, you could also delete the file from Supabase Storage here
-    // but that would require a server-side function for security.
-    toast.info('Logo removed from settings. It might still exist in storage.');
+    toast.info('Logo removed from settings. It might still exist on the server.');
   };
 
   const onSubmit = async (values: CompanySettingsFormValues) => {
-    const { error } = await supabase
-      .from('app_settings')
-      .update(values)
-      .eq('id', '00000000-0000-0000-0000-000000000001'); // Fixed ID for the single settings row
-
-    if (error) {
-      toast.error('Failed to save company settings: ' + error.message);
-    } else {
+    try {
+      // Pretpostavljena ruta za ažuriranje postavki kompanije
+      await api.put('/app-settings/company', values); // Pretpostavljamo da postoji fiksni ID ili da se ažurira jedinstveni red
       toast.success('Company settings saved successfully!');
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save company settings: ' + (err.response?.data?.message || err.message));
     }
   };
 

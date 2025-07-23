@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionContext';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const userCreateFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -37,7 +38,7 @@ interface UserCreateFormProps {
 }
 
 const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
-  const { supabase, user } = useSession(); // Get supabase client and current user from session context
+  const { user } = useSession(); // Get current user from session context
 
   const form = useForm<UserCreateFormValues>({
     resolver: zodResolver(userCreateFormSchema),
@@ -57,33 +58,24 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      // Create user via Supabase Admin API (requires service role key on backend or RLS policy)
-      // For client-side, we use `supabase.auth.signUp` which creates the user and handles profile insertion via trigger.
-      const { data, error } = await supabase.auth.signUp({
+      // Poziv na vaš Express API za kreiranje korisnika
+      const response = await api.post('/users', { // Pretpostavljena ruta za kreiranje korisnika
         email: values.email,
         password: values.password,
-        options: {
-          data: {
-            first_name: values.first_name,
-            last_name: values.last_name,
-            role: values.role,
-          },
-        },
+        first_name: values.first_name,
+        last_name: values.last_name,
+        role: values.role,
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.user) {
-        toast.success('User created successfully! An email confirmation might be sent.');
+      if (response.status === 201) { // Pretpostavljamo da API vraća 201 Created
+        toast.success('User created successfully!');
         form.reset();
         onSuccess?.();
       } else {
-        toast.error('Failed to create user: No user data returned.');
+        toast.error('Failed to create user: ' + (response.data?.message || 'Unknown error.'));
       }
     } catch (error: any) {
-      toast.error('Error creating user: ' + error.message);
+      toast.error('Error creating user: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -108,7 +100,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>Password</Label>
               <FormControl>
                 <Input type="password" placeholder="********" {...field} />
               </FormControl>

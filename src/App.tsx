@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
@@ -28,6 +28,7 @@ import MainLayout from "./components/MainLayout";
 import React, { useEffect, useState } from "react";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { toast } from "sonner";
+import api from "./lib/api"; // Import the new API client
 
 interface AppSettings {
   module_dashboard_enabled: boolean;
@@ -50,7 +51,7 @@ const queryClient = new QueryClient();
 
 // Component to fetch settings and conditionally render routes
 const AppRoutes = () => {
-  const { user, isAuthenticated, isLoading, fetchUserRole, supabase } = useSession();
+  const { user, isAuthenticated, isLoading, fetchUserRole, token } = useSession();
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -59,28 +60,18 @@ const AppRoutes = () => {
     const loadSettingsAndRole = async () => {
       setLoadingSettings(true);
 
-      if (!isAuthenticated || !user?.id) {
+      if (!isAuthenticated || !token) {
         setLoadingSettings(false);
         return;
       }
 
-      // Fetch app settings using Supabase client
+      // Fetch app settings using new API client
       try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('*')
-          .eq('id', '00000000-0000-0000-0000-000000000001')
-          .single();
-
-        if (error) {
-          console.error('Error fetching app settings:', error.message);
-          toast.error('Failed to load app settings for routing.');
-        } else {
-          setAppSettings(data as AppSettings);
-        }
+        const response = await api.get('/app-settings'); // Pretpostavljena ruta za app settings
+        setAppSettings(response.data as AppSettings);
       } catch (error: any) {
-        console.error('Unexpected error fetching app settings:', error.message);
-        toast.error('An unexpected error occurred while loading app settings.');
+        console.error('Error fetching app settings:', error.response?.data || error.message);
+        toast.error('Failed to load app settings for routing.');
       }
 
       // Fetch user role
@@ -93,7 +84,7 @@ const AppRoutes = () => {
     if (!isLoading) { // Only load settings and role once session loading is complete
       loadSettingsAndRole();
     }
-  }, [isAuthenticated, isLoading, fetchUserRole, user?.id, supabase]);
+  }, [isAuthenticated, isLoading, fetchUserRole, token]);
 
   // Helper function to check if a module is enabled and if user has permission
   const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {

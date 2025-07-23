@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface NavLinkProps {
   to: string;
@@ -70,7 +71,7 @@ interface AppSettings {
 }
 
 const Sidebar: React.FC = () => {
-  const { logout, user, isAuthenticated, isLoading, fetchUserRole, supabase } = useSession();
+  const { logout, user, isAuthenticated, isLoading, fetchUserRole } = useSession();
   const location = useLocation();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -84,23 +85,13 @@ const Sidebar: React.FC = () => {
         return;
       }
 
-      // Fetch app settings using Supabase client
+      // Fetch app settings using new API client
       try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('*')
-          .eq('id', '00000000-0000-0000-0000-000000000001')
-          .single();
-
-        if (error) {
-          console.error('Error fetching app settings:', error.message);
-          toast.error('Failed to load app settings.');
-        } else {
-          setAppSettings(data as AppSettings);
-        }
+        const response = await api.get('/app-settings'); // Pretpostavljena ruta za app settings
+        setAppSettings(response.data as AppSettings);
       } catch (error: any) {
-        console.error('Unexpected error fetching app settings:', error.message);
-        toast.error('An unexpected error occurred while loading app settings.');
+        console.error('Error fetching app settings:', error.response?.data || error.message);
+        toast.error('Failed to load app settings.');
       }
 
       // Fetch user role
@@ -112,7 +103,7 @@ const Sidebar: React.FC = () => {
     if (!isLoading) { // Only load settings and role once session loading is complete
       loadSettingsAndRole();
     }
-  }, [isAuthenticated, isLoading, fetchUserRole, user?.id, supabase]);
+  }, [isAuthenticated, isLoading, fetchUserRole, user?.id]);
 
   // Helper to check if a module is enabled AND if the user has the required role
   const isModuleVisible = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {

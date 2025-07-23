@@ -24,7 +24,8 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import LoadingSpinner from './LoadingSpinner';
-import { Separator } from '@/components/ui/separator'; // Ensure Separator is imported
+import { Separator } from '@/components/ui/separator';
+import api from '@/lib/api'; // Import novog API klijenta
 
 // Schemas
 const currencySchema = z.object({
@@ -72,7 +73,7 @@ interface CurrencySettingsFormProps {
 }
 
 const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }) => {
-  const { supabase } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -93,132 +94,92 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
     let hasError = false;
 
     // Fetch currencies
-    const { data: currenciesData, error: currenciesError } = await supabase
-      .from('currencies')
-      .select('*')
-      .order('code', { ascending: true });
-    if (currenciesError) {
-      toast.error('Failed to load currencies: ' + currenciesError.message);
-      hasError = true;
-    } else {
+    try {
+      const { data: currenciesData } = await api.get('/currencies'); // Pretpostavljena ruta
       setCurrencies(currenciesData);
+    } catch (error: any) {
+      toast.error('Failed to load currencies: ' + (error.response?.data?.message || error.message));
+      hasError = true;
     }
 
     // Fetch exchange rates
-    const { data: ratesData, error: ratesError } = await supabase
-      .from('exchange_rates')
-      .select(`
-        id,
-        from_currency_id,
-        to_currency_id,
-        rate,
-        from_currency:from_currency_id(code, symbol),
-        to_currency:to_currency_id(code, symbol)
-      `)
-      .order('updated_at', { ascending: false });
-    if (ratesError) {
-      toast.error('Failed to load exchange rates: ' + ratesError.message);
-      hasError = true;
-    } else {
+    try {
+      const { data: ratesData } = await api.get('/exchange-rates'); // Pretpostavljena ruta
       setExchangeRates(ratesData as ExchangeRate[]);
+    } catch (error: any) {
+      toast.error('Failed to load exchange rates: ' + (error.response?.data?.message || error.message));
+      hasError = true;
     }
 
     // Fetch app settings for default currency
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('default_currency_id')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-    if (settingsError) {
-      console.error('Failed to load app settings for default currency:', settingsError.message);
-      // Not critical, can proceed without it
-    } else {
+    try {
+      const { data: settingsData } = await api.get('/app-settings'); // Pretpostavljena ruta
       setAppSettings(settingsData);
+    } catch (error: any) {
+      console.error('Failed to load app settings for default currency:', error.response?.data || error.message);
     }
 
     setLoading(false);
-    // Removed onSuccess?.() here to prevent re-render loop
   };
 
   useEffect(() => {
     fetchAllData();
-  }, [supabase]); // Only re-fetch when supabase client changes (effectively once on mount)
+  }, []); // Samo jednom pri montiranju
 
   const handleAddCurrency = async (values: CurrencyFormValues) => {
-    const { error } = await supabase.from('currencies').insert(values);
-    if (error) {
-      toast.error('Failed to add currency: ' + error.message);
-    } else {
+    try {
+      await api.post('/currencies', values); // Pretpostavljena ruta
       toast.success('Currency added successfully!');
       currencyForm.reset();
-      fetchAllData(); // Re-fetch internal data
+      fetchAllData();
+    } catch (error: any) {
+      toast.error('Failed to add currency: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteCurrency = async (currencyId: string) => {
     if (!window.confirm('Are you sure you want to delete this currency? This will also delete all associated exchange rates.')) return;
-    const { error } = await supabase.from('currencies').delete().eq('id', currencyId);
-    if (error) {
-      toast.error('Failed to delete currency: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/currencies/${currencyId}`); // Pretpostavljena ruta
       toast.success('Currency deleted successfully!');
-      fetchAllData(); // Re-fetch internal data
+      fetchAllData();
+    } catch (error: any) {
+      toast.error('Failed to delete currency: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleSetDefaultCurrency = async (currencyId: string) => {
-    const { error: updateDefaultError } = await supabase
-      .from('app_settings')
-      .update({ default_currency_id: currencyId })
-      .eq('id', '00000000-0000-0000-0000-000000000001');
-
-    if (updateDefaultError) {
-      toast.error('Failed to set default currency: ' + updateDefaultError.message);
-    } else {
-      // Also update is_default flag in currencies table
-      const { error: resetDefaultError } = await supabase
-        .from('currencies')
-        .update({ is_default: false })
-        .neq('id', currencyId); // Set all others to false
-
-      if (resetDefaultError) {
-        console.error('Error resetting other default currencies:', resetDefaultError.message);
-      }
-
-      const { error: setDefaultError } = await supabase
-        .from('currencies')
-        .update({ is_default: true })
-        .eq('id', currencyId);
-
-      if (setDefaultError) {
-        console.error('Error setting new default currency:', setDefaultError.message);
-      }
-
+    try {
+      // Pretpostavljena ruta za ažuriranje default valute u app_settings
+      await api.put('/app-settings/default-currency', { default_currency_id: currencyId });
+      // Ažuriranje is_default flag-a u currencies tabeli (ako je potrebno, vaš API bi to trebao riješiti)
       toast.success('Default currency updated successfully!');
-      fetchAllData(); // Re-fetch internal data
-      onSuccess?.(); // Notify parent to re-fetch app settings
+      fetchAllData();
+      onSuccess?.();
+    } catch (error: any) {
+      toast.error('Failed to set default currency: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleAddExchangeRate = async (values: ExchangeRateFormValues) => {
-    const { error } = await supabase.from('exchange_rates').insert(values);
-    if (error) {
-      toast.error('Failed to add exchange rate: ' + error.message);
-    } else {
+    try {
+      await api.post('/exchange-rates', values); // Pretpostavljena ruta
       toast.success('Exchange rate added successfully!');
       exchangeRateForm.reset();
-      fetchAllData(); // Re-fetch internal data
+      fetchAllData();
+    } catch (error: any) {
+      toast.error('Failed to add exchange rate: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleDeleteExchangeRate = async (rateId: string) => {
     if (!window.confirm('Are you sure you want to delete this exchange rate?')) return;
-    const { error } = await supabase.from('exchange_rates').delete().eq('id', rateId);
-    if (error) {
-      toast.error('Failed to delete exchange rate: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/exchange-rates/${rateId}`); // Pretpostavljena ruta
       toast.success('Exchange rate deleted successfully!');
-      fetchAllData(); // Re-fetch internal data
+      fetchAllData();
+    } catch (error: any) {
+      toast.error('Failed to delete exchange rate: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -292,10 +253,10 @@ const CurrencySettingsForm: React.FC<CurrencySettingsFormProps> = ({ onSuccess }
                 <div key={currency.id} className="flex items-center justify-between p-3 border rounded-md">
                   <div>
                     <p className="font-medium">{currency.name} ({currency.code})</p>
-                    <p className="text-sm text-muted-foreground">Symbol: {currency.symbol} {currency.is_default && <span className="text-xs text-blue-500">(Default)</span>}</p>
+                    <p className="text-sm text-muted-foreground">Symbol: {currency.symbol} {appSettings?.default_currency_id === currency.id && <span className="text-xs text-blue-500">(Default)</span>}</p>
                   </div>
                   <div className="flex space-x-2">
-                    {!currency.is_default && (
+                    {appSettings?.default_currency_id !== currency.id && (
                       <Button variant="outline" size="sm" onClick={() => handleSetDefaultCurrency(currency.id)}>
                         Set Default
                       </Button>

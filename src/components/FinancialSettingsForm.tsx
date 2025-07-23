@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/form';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const financialSettingsSchema = z.object({
   default_vat_rate: z.preprocess(
@@ -30,7 +31,7 @@ interface FinancialSettingsFormProps {
 }
 
 const FinancialSettingsForm: React.FC<FinancialSettingsFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
 
   const form = useForm<FinancialSettingsFormValues>({
     resolver: zodResolver(financialSettingsSchema),
@@ -40,16 +41,13 @@ const FinancialSettingsForm: React.FC<FinancialSettingsFormProps> = ({ initialDa
   });
 
   const onSubmit = async (values: FinancialSettingsFormValues) => {
-    const { error } = await supabase
-      .from('app_settings')
-      .update(values)
-      .eq('id', '00000000-0000-0000-0000-000000000001'); // Fixed ID for the single settings row
-
-    if (error) {
-      toast.error('Failed to save financial settings: ' + error.message);
-    } else {
+    try {
+      // Pretpostavljena ruta za ažuriranje finansijskih postavki
+      await api.put('/app-settings/financial', values); // Pretpostavljamo da postoji fiksni ID ili da se ažurira jedinstveni red
       toast.success('Financial settings saved successfully!');
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save financial settings: ' + (err.response?.data?.message || err.message));
     }
   };
 

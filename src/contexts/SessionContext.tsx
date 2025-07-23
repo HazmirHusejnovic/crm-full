@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
+import api, { setAuthToken } from '@/lib/api'; // Import novog API klijenta
 
 interface User {
   id: string;
@@ -20,7 +20,7 @@ interface SessionContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   fetchUserRole: () => Promise<string | null>;
-  supabase: typeof supabase; // Provide the supabase client
+  // Uklanjamo supabase instancu jer je više ne koristimo
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -33,37 +33,14 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
 
   const fetchSessionAndProfile = useCallback(async () => {
     setIsLoading(true);
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const storedToken = localStorage.getItem('token');
 
-    if (sessionError) {
-      console.error('Error fetching session:', sessionError.message);
-      setToken(null);
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
+    if (storedToken) {
+      setAuthToken(storedToken);
+      try {
+        const response = await api.get('/auth/me'); // Pretpostavljena ruta za dohvaćanje korisnika
+        const profileData = response.data;
 
-    if (session) {
-      setToken(session.access_token);
-      // Fetch user profile from public.profiles table
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles_with_auth_emails') // Use the view that includes email
-        .select('id, first_name, last_name, role, email')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError.message);
-        // If profile not found, it might be a new user, or an issue.
-        // For now, we'll set a basic user from auth session.
-        setUser({
-          id: session.user.id,
-          email: session.user.email || 'N/A',
-          role: 'client', // Default role if profile not found
-          first_name: null,
-          last_name: null,
-        });
-      } else if (profileData) {
         setUser({
           id: profileData.id,
           email: profileData.email || 'N/A',
@@ -71,135 +48,101 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           first_name: profileData.first_name,
           last_name: profileData.last_name,
         });
+        setToken(storedToken);
+      } catch (error: any) {
+        console.error('Error fetching user profile:', error.response?.data || error.message);
+        toast.error('Failed to load user session. Please log in again.');
+        localStorage.removeItem('token');
+        setAuthToken(null);
+        setUser(null);
+        setToken(null);
+        navigate('/login');
       }
     } else {
-      setToken(null);
       setUser(null);
+      setToken(null);
     }
     setIsLoading(false);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     fetchSessionAndProfile();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setToken(session.access_token);
-        // Re-fetch profile on auth state change (e.g., login, user update)
-        supabase
-          .from('profiles_with_auth_emails')
-          .select('id, first_name, last_name, role, email')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profileData, error: profileError }) => {
-            if (profileError) {
-              console.error('Error fetching user profile on auth state change:', profileError.message);
-              setUser({
-                id: session.user.id,
-                email: session.user.email || 'N/A',
-                role: 'client',
-                first_name: null,
-                last_name: null,
-              });
-            } else if (profileData) {
-              setUser({
-                id: profileData.id,
-                email: profileData.email || 'N/A',
-                role: profileData.role,
-                first_name: profileData.first_name,
-                last_name: profileData.last_name,
-              });
-            }
-          });
-      } else {
-        setToken(null);
-        setUser(null);
-        navigate('/login');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchSessionAndProfile, navigate]);
+    // Nema više onAuthStateChange, moramo ručno provjeravati sesiju ili se osloniti na API pozive
+    // Za jednostavnost, oslanjamo se na fetchSessionAndProfile pri učitavanju i nakon akcija
+  }, [fetchSessionAndProfile]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      toast.error('Login failed: ' + error.message);
-      setIsLoading(false);
-      throw error;
-    }
-    if (data.session) {
-      setToken(data.session.access_token);
-      // Profile will be fetched by onAuthStateChange listener
+    try {
+      const response = await api.post('/auth/login', { email, password }); // Pretpostavljena ruta za login
+      const { token: newToken, user: userData } = response.data;
+
+      localStorage.setItem('token', newToken);
+      setAuthToken(newToken);
+      setToken(newToken);
+      setUser(userData); // API bi trebao vratiti korisničke podatke uključujući ulogu
       toast.success('Logged in successfully!');
       navigate('/');
+    } catch (error: any) {
+      toast.error('Login failed: ' + (error.response?.data?.message || error.message));
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const register = async (name: string, email: string, password: string, role: string) => {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: name.split(' ')[0] || null,
-          last_name: name.split(' ').slice(1).join(' ') || null,
-          role: role,
-        },
-      },
-    });
+    try {
+      const response = await api.post('/auth/register', { // Pretpostavljena ruta za registraciju
+        first_name: name.split(' ')[0] || null,
+        last_name: name.split(' ').slice(1).join(' ') || null,
+        email,
+        password,
+        role,
+      });
+      const { token: newToken, user: userData } = response.data;
 
-    if (error) {
-      toast.error('Registration failed: ' + error.message);
-      setIsLoading(false);
-      throw error;
-    }
-    if (data.session) {
-      setToken(data.session.access_token);
-      // Profile will be fetched by onAuthStateChange listener
+      localStorage.setItem('token', newToken);
+      setAuthToken(newToken);
+      setToken(newToken);
+      setUser(userData);
       toast.success('Registration successful! You are now logged in.');
       navigate('/');
-    } else if (data.user && !data.session) {
-      // User created but email confirmation needed
-      toast.info('Registration successful! Please check your email to confirm your account.');
-      navigate('/login'); // Redirect to login to wait for confirmation
+    } catch (error: any) {
+      toast.error('Registration failed: ' + (error.response?.data?.message || error.message));
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error('Logout failed: ' + error.message);
-    } else {
-      toast.success('Logged out successfully!');
-      setToken(null);
-      setUser(null);
-      navigate('/login');
-    }
+  const logout = () => {
+    localStorage.removeItem('token');
+    setAuthToken(null);
+    setUser(null);
+    setToken(null);
+    toast.success('Logged out successfully!');
+    navigate('/login');
   };
 
   const fetchUserRole = useCallback(async (): Promise<string | null> => {
     if (!user?.id) return null;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    if (error) {
-      console.error('Failed to fetch user role:', error.message);
+    try {
+      const response = await api.get(`/profiles/${user.id}`); // Pretpostavljena ruta za dohvaćanje profila
+      const profileData = response.data;
+      setUser(prev => prev ? { ...prev, role: profileData.role } : null); // Ažuriraj lokalno stanje
+      return profileData.role;
+    } catch (error: any) {
+      console.error('Failed to fetch user role:', error.response?.data || error.message);
       toast.error('Failed to fetch user role.');
       return null;
     }
-    setUser(prev => prev ? { ...prev, role: data.role } : null); // Update local user state
-    return data.role;
   }, [user?.id]);
 
   return (
-    <SessionContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!user, isLoading, fetchUserRole, supabase }}>
+    <SessionContext.Provider value={{ user, token, login, register, logout, isAuthenticated: !!user, isLoading, fetchUserRole }}>
       {isLoading ? (
         <div className="flex items-center justify-center min-h-screen">Loading application...</div>
       ) : (

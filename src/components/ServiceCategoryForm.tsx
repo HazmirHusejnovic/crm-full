@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/form';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const serviceCategoryFormSchema = z.object({
   name: z.string().min(1, { message: 'Category name is required.' }),
@@ -29,7 +30,7 @@ interface ServiceCategoryFormProps {
 }
 
 const ServiceCategoryForm: React.FC<ServiceCategoryFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
 
   const form = useForm<ServiceCategoryFormValues>({
     resolver: zodResolver(serviceCategoryFormSchema),
@@ -46,27 +47,19 @@ const ServiceCategoryForm: React.FC<ServiceCategoryFormProps> = ({ initialData, 
     }
 
     let error = null;
-    if (initialData?.id) {
-      // Update existing category
-      const { error: updateError } = await supabase
-        .from('service_categories')
-        .update(values)
-        .eq('id', initialData.id);
-      error = updateError;
-    } else {
-      // Create new category
-      const { error: insertError } = await supabase
-        .from('service_categories')
-        .insert(values);
-      error = insertError;
-    }
-
-    if (error) {
-      toast.error('Failed to save category: ' + error.message);
-    } else {
+    try {
+      if (initialData?.id) {
+        // Update existing category
+        await api.put(`/service-categories/${initialData.id}`, values); // Pretpostavljena ruta
+      } else {
+        // Create new category
+        await api.post('/service-categories', values); // Pretpostavljena ruta
+      }
       toast.success('Category saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save category: ' + (err.response?.data?.message || err.message));
     }
   };
 

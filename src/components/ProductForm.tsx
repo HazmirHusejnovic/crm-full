@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const productFormSchema = z.object({
   name: z.string().min(1, { message: 'Product name is required.' }),
@@ -55,40 +56,33 @@ interface ProductCategory {
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
 
   useEffect(() => {
     const fetchSettingsAndCategories = async () => {
       // Fetch default VAT rate
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('default_vat_rate')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Failed to load default VAT rate from settings:', settingsError.message);
-        // Fallback to hardcoded default if settings not found
-      } else if (settingsData) {
-        setDefaultVatRate(settingsData.default_vat_rate);
+      try {
+        const { data: settingsData } = await api.get('/app-settings'); // Pretpostavljena ruta
+        if (settingsData) {
+          setDefaultVatRate(settingsData.default_vat_rate);
+        }
+      } catch (error: any) {
+        console.error('Failed to load default VAT rate from settings:', error.response?.data || error.message);
       }
 
       // Fetch categories
-      const { data, error } = await supabase
-        .from('product_categories')
-        .select('id, name');
-
-      if (error) {
-        toast.error('Failed to load product categories: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/product-categories'); // Pretpostavljena ruta
         setCategories(data);
+      } catch (error: any) {
+        toast.error('Failed to load product categories: ' + (error.response?.data?.message || error.message));
       }
     };
 
     fetchSettingsAndCategories();
-  }, [supabase]);
+  }, []);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -122,28 +116,19 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData, onSuccess }) => 
       category_id: values.category_id === 'null-value' ? null : values.category_id, // Handle null-value for category
     };
 
-    let error = null;
-    if (initialData?.id) {
-      // Update existing product
-      const { error: updateError } = await supabase
-        .from('products')
-        .update(productData)
-        .eq('id', initialData.id);
-      error = updateError;
-    } else {
-      // Create new product
-      const { error: insertError } = await supabase
-        .from('products')
-        .insert(productData);
-      error = insertError;
-    }
-
-    if (error) {
-      toast.error('Failed to save product: ' + error.message);
-    } else {
+    try {
+      if (initialData?.id) {
+        // Update existing product
+        await api.put(`/products/${initialData.id}`, productData); // Pretpostavljena ruta
+      } else {
+        // Create new product
+        await api.post('/products', productData); // Pretpostavljena ruta
+      }
       toast.success('Product saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save product: ' + (err.response?.data?.message || err.message));
     }
   };
 

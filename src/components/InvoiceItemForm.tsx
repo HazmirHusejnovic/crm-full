@@ -23,6 +23,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { Textarea } from './ui/textarea'; // Ensure Textarea is imported
+import api from '@/lib/api'; // Import novog API klijenta
 
 export const invoiceItemFormSchema = z.object({
   service_id: z.string().uuid().nullable().optional(),
@@ -82,7 +83,7 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
   exchangeRates,
   currencies,
 }) => {
-  const { supabase } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [services, setServices] = useState<Service[]>([]);
   const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
   const { control, setValue, trigger, getValues } = useFormContext(); // Get control from parent context
@@ -90,32 +91,25 @@ const InvoiceItemForm: React.FC<InvoiceItemFormProps> = ({
   useEffect(() => {
     const fetchSettingsAndServices = async () => {
       // Fetch default VAT rate
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('default_vat_rate')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Failed to load default VAT rate from settings:', settingsError.message);
-        // Fallback to hardcoded default if settings not found
-      } else if (settingsData) {
-        setDefaultVatRate(settingsData.default_vat_rate);
+      try {
+        const { data: settingsData } = await api.get('/app-settings'); // Pretpostavljena ruta
+        if (settingsData) {
+          setDefaultVatRate(settingsData.default_vat_rate);
+        }
+      } catch (error: any) {
+        console.error('Failed to load default VAT rate from settings:', error.response?.data || error.message);
       }
 
       // Fetch services
-      const { data, error } = await supabase
-        .from('services')
-        .select('id, name, description, default_price, vat_rate');
-
-      if (error) {
-        toast.error('Failed to load services: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/services'); // Pretpostavljena ruta
         setServices(data);
+      } catch (error: any) {
+        toast.error('Failed to load services: ' + (error.response?.data?.message || error.message));
       }
     };
     fetchSettingsAndServices();
-  }, [supabase]);
+  }, []);
 
   // Set default VAT rate for new items if it changes
   useEffect(() => {

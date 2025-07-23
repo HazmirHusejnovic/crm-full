@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const serviceFormSchema = z.object({
   name: z.string().min(1, { message: 'Service name is required.' }),
@@ -54,40 +55,33 @@ interface ServiceCategory {
 }
 
 const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [defaultVatRate, setDefaultVatRate] = useState<number>(0.17); // Default fallback
 
   useEffect(() => {
     const fetchSettingsAndCategories = async () => {
       // Fetch default VAT rate
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('default_vat_rate')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Failed to load default VAT rate from settings:', settingsError.message);
-        // Fallback to hardcoded default if settings not found
-      } else if (settingsData) {
-        setDefaultVatRate(settingsData.default_vat_rate);
+      try {
+        const { data: settingsData } = await api.get('/app-settings'); // Pretpostavljena ruta
+        if (settingsData) {
+          setDefaultVatRate(settingsData.default_vat_rate);
+        }
+      } catch (error: any) {
+        console.error('Failed to load default VAT rate from settings:', error.response?.data || error.message);
       }
 
       // Fetch categories
-      const { data, error } = await supabase
-        .from('service_categories')
-        .select('id, name');
-
-      if (error) {
-        toast.error('Failed to load service categories: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/service-categories'); // Pretpostavljena ruta
         setCategories(data);
+      } catch (error: any) {
+        toast.error('Failed to load service categories: ' + (error.response?.data?.message || error.message));
       }
     };
 
     fetchSettingsAndCategories();
-  }, [supabase]);
+  }, []);
 
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
@@ -114,28 +108,19 @@ const ServiceForm: React.FC<ServiceFormProps> = ({ initialData, onSuccess }) => 
       return;
     }
 
-    let error = null;
-    if (initialData?.id) {
-      // Update existing service
-      const { error: updateError } = await supabase
-        .from('services')
-        .update(values)
-        .eq('id', initialData.id);
-      error = updateError;
-    } else {
-      // Create new service
-      const { error: insertError } = await supabase
-        .from('services')
-        .insert(values);
-      error = insertError;
-    }
-
-    if (error) {
-      toast.error('Failed to save service: ' + error.message);
-    } else {
+    try {
+      if (initialData?.id) {
+        // Update existing service
+        await api.put(`/services/${initialData.id}`, values); // Pretpostavljena ruta
+      } else {
+        // Create new service
+        await api.post('/services', values); // Pretpostavljena ruta
+      }
       toast.success('Service saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save service: ' + (err.response?.data?.message || err.message));
     }
   };
 

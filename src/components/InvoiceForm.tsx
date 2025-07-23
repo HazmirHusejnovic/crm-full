@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { PlusCircle } from 'lucide-react';
 import InvoiceItemForm, { InvoiceItemFormValues, invoiceItemFormSchema } from './InvoiceItemForm'; // Import invoiceItemFormSchema
 import { format } from 'date-fns';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const invoiceFormSchema = z.object({
   invoice_number: z.string().min(1, { message: 'Invoice number is required.' }),
@@ -65,7 +66,7 @@ interface ExchangeRate {
 }
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [clients, setClients] = useState<Profile[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
@@ -92,57 +93,43 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
   useEffect(() => {
     const fetchData = async () => {
       // Fetch app settings for default currency
-      const { data: appSettings, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('default_currency_id')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Failed to load app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-      } else {
-        setAppDefaultCurrencyId(appSettings?.default_currency_id || null);
+      try {
+        const { data: appSettingsData } = await api.get('/app-settings'); // Pretpostavljena ruta
+        setAppDefaultCurrencyId(appSettingsData?.default_currency_id || null);
         if (!initialData?.currency_id) { // Set initial selected currency to app default if not already set
-          form.setValue('currency_id', appSettings?.default_currency_id || '');
+          form.setValue('currency_id', appSettingsData?.default_currency_id || '');
         }
+      } catch (error: any) {
+        console.error('Failed to load app settings:', error.response?.data || error.message);
+        toast.error('Failed to load app settings.');
       }
 
       // Fetch clients
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('profiles_with_auth_emails')
-        .select('id, first_name, last_name, email, default_currency_id')
-        .eq('role', 'client');
-
-      if (clientsError) {
-        toast.error('Failed to load clients: ' + clientsError.message);
-      } else {
+      try {
+        const { data: clientsData } = await api.get('/profiles?role=client'); // Pretpostavljena ruta
         setClients(clientsData as Profile[]);
+      } catch (error: any) {
+        toast.error('Failed to load clients: ' + (error.response?.data?.message || error.message));
       }
 
       // Fetch currencies
-      const { data: currenciesData, error: currenciesError } = await supabase
-        .from('currencies')
-        .select('id, code, name, symbol')
-        .order('code', { ascending: true });
-      if (currenciesError) {
-        toast.error('Failed to load currencies: ' + currenciesError.message);
-      } else {
+      try {
+        const { data: currenciesData } = await api.get('/currencies'); // Pretpostavljena ruta
         setCurrencies(currenciesData);
+      } catch (error: any) {
+        toast.error('Failed to load currencies: ' + (error.response?.data?.message || error.message));
       }
 
       // Fetch exchange rates
-      const { data: ratesData, error: ratesError } = await supabase
-        .from('exchange_rates')
-        .select('*');
-      if (ratesError) {
-        toast.error('Failed to load exchange rates: ' + ratesError.message);
-      } else {
+      try {
+        const { data: ratesData } = await api.get('/exchange-rates'); // Pretpostavljena ruta
         setExchangeRates(ratesData);
+      } catch (error: any) {
+        toast.error('Failed to load exchange rates: ' + (error.response?.data?.message || error.message));
       }
     };
     fetchData();
-  }, [supabase, initialData, form]);
+  }, [initialData, form]);
 
   // Update currency_id when client_id changes, if client has a default currency
   useEffect(() => {
@@ -210,75 +197,31 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ initialData, onSuccess }) => 
       status: values.status,
       created_by: initialData?.created_by || session.user.id,
       currency_id: values.currency_id, // Save the selected currency with the invoice
-    };
-
-    let invoiceError = null;
-    let invoiceId = initialData?.id;
-
-    if (initialData?.id) {
-      // Update existing invoice
-      const { error: updateError } = await supabase
-        .from('invoices')
-        .update(invoiceData)
-        .eq('id', initialData.id);
-      invoiceError = updateError;
-    } else {
-      // Create new invoice
-      const { data, error: insertError } = await supabase
-        .from('invoices')
-        .insert(invoiceData)
-        .select('id')
-        .single();
-      invoiceError = insertError;
-      if (data) {
-        invoiceId = data.id;
-      }
-    }
-
-    if (invoiceError) {
-      toast.error('Failed to save invoice: ' + invoiceError.message);
-      return;
-    }
-
-    // Handle invoice items
-    if (invoiceId) {
-      // First, delete existing items for this invoice if updating
-      if (initialData?.id) {
-        const { error: deleteItemsError } = await supabase
-          .from('invoice_items')
-          .delete()
-          .eq('invoice_id', invoiceId);
-        if (deleteItemsError) {
-          toast.error('Failed to clear existing invoice items: ' + deleteItemsError.message);
-          return;
-        }
-      }
-
-      // Then, insert all current items
-      const itemsToInsert = values.items.map(item => ({
+      items: values.items.map(item => ({
         ...item,
-        invoice_id: invoiceId,
         // Convert unit_price to the invoice's selected currency if it came from a service
         unit_price: item.service_id
           ? convertPrice(item.unit_price, appDefaultCurrencyId || '', values.currency_id)
           : item.unit_price, // Custom items are assumed to be in the invoice's currency
         total: calculateItemTotal(item),
         service_id: item.service_id === 'custom' ? null : item.service_id,
-      }));
+      })),
+    };
 
-      const { error: insertItemsError } = await supabase
-        .from('invoice_items')
-        .insert(itemsToInsert);
-
-      if (insertItemsError) {
-        toast.error('Failed to save invoice items: ' + insertItemsError.message);
-        return;
+    try {
+      if (initialData?.id) {
+        // Update existing invoice
+        await api.put(`/invoices/${initialData.id}`, invoiceData); // Pretpostavljena ruta
+      } else {
+        // Create new invoice
+        await api.post('/invoices', invoiceData); // Pretpostavljena ruta
       }
+      toast.success('Invoice saved successfully!');
+      form.reset();
+      onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save invoice: ' + (err.response?.data?.message || err.message));
     }
-
-    toast.success('Invoice saved successfully!');
-    form.reset();
-    onSuccess?.();
   };
 
   const currentInvoiceCurrencyId = form.watch('currency_id');

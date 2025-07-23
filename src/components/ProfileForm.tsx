@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const profileFormSchema = z.object({
   first_name: z.string().optional().nullable(),
@@ -44,7 +45,7 @@ interface Currency {
 }
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [currencies, setCurrencies] = useState<Currency[]>([]);
 
   const form = useForm<ProfileFormValues>({
@@ -59,19 +60,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
 
   useEffect(() => {
     const fetchCurrencies = async () => {
-      const { data, error } = await supabase
-        .from('currencies')
-        .select('id, code, name, symbol')
-        .order('code', { ascending: true });
-
-      if (error) {
-        toast.error('Failed to load currencies: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/currencies'); // Pretpostavljena ruta
         setCurrencies(data);
+      } catch (error: any) {
+        toast.error('Failed to load currencies: ' + (error.response?.data?.message || error.message));
       }
     };
     fetchCurrencies();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (values: ProfileFormValues) => {
     if (!session?.user?.id) {
@@ -79,21 +76,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialData, onSuccess }) => 
       return;
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
+    try {
+      await api.put(`/profiles/${initialData.id}`, { // Pretpostavljena ruta za ažuriranje profila
         first_name: values.first_name,
         last_name: values.last_name,
         role: values.role,
         default_currency_id: values.default_currency_id === 'null-value' ? null : values.default_currency_id, // Handle null-value
-      })
-      .eq('id', initialData.id);
-
-    if (error) {
-      toast.error('Failed to update profile: ' + error.message);
-    } else {
+      });
       toast.success('Profile updated successfully!');
       onSuccess?.();
+    } catch (error: any) {
+      toast.error('Failed to update profile: ' + (error.response?.data?.message || error.message));
     }
   };
 
