@@ -29,7 +29,7 @@ const userCreateFormSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
-  role: z.enum(['client', 'worker', 'admin'], { message: 'Role is required.' }), // Changed 'administrator' to 'admin' based on backend spec
+  role: z.enum(['client', 'worker', 'administrator'], { message: 'Role is required.' }), // Changed 'administrator' to 'admin' based on backend spec
   // skip_email_verification: z.boolean().optional().default(false), // This is a Supabase-specific field, remove for custom backend
 });
 
@@ -160,7 +160,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
                 <SelectContent>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="worker">Worker</SelectItem>
-                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="administrator">Administrator</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

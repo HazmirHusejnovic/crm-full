@@ -142,7 +142,7 @@ const Login: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="client">Client</SelectItem>
                       <SelectItem value="worker">Worker</SelectItem>
-                      <SelectItem value="admin">Administrator</SelectItem>
+                      <SelectItem value="administrator">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

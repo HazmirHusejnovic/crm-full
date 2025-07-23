@@ -56,33 +56,52 @@ const AppRoutes = () => {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
+  console.log("AppRoutes: Initial render. isAuthenticated:", isAuthenticated, "isLoading (context):", isLoading, "loadingSettings (local):", loadingSettings);
+
   useEffect(() => {
+    console.log("AppRoutes useEffect triggered. isAuthenticated:", isAuthenticated, "isLoading (context):", isLoading, "loadingSettings (local):", loadingSettings);
+
     const loadSettingsAndRole = async () => {
+      console.log("loadSettingsAndRole: Starting...");
       setLoadingSettings(true);
+      console.log("loadSettingsAndRole: setLoadingSettings(true)");
+
       if (!isAuthenticated || !token) {
+        console.log("loadSettingsAndRole: Not authenticated or token missing. isAuthenticated:", isAuthenticated, "token:", !!token);
         setLoadingSettings(false);
         return;
       }
 
       // Fetch app settings
       try {
+        console.log("loadSettingsAndRole: Fetching app settings...");
         const settingsData = await api.get<AppSettings>('/app-settings', token);
         setAppSettings(settingsData);
+        console.log("loadSettingsAndRole: App settings fetched successfully:", settingsData);
       } catch (error: any) {
-        console.error('Error fetching app settings:', error.message);
+        console.error('loadSettingsAndRole: Error fetching app settings:', error.message);
         toast.error('Failed to load app settings for routing.');
+        // Decide if this error should prevent further loading or just log
+        // For now, we'll let it continue to fetch role, but it might lead to issues if settings are critical.
       }
 
       // Fetch user role
+      console.log("loadSettingsAndRole: Fetching user role...");
       const role = await fetchUserRole();
       setCurrentUserRole(role);
+      console.log("loadSettingsAndRole: User role fetched:", role);
+
       setLoadingSettings(false);
+      console.log("loadSettingsAndRole: setLoadingSettings(false). Finished.");
     };
 
     if (!isLoading) { // Only load settings and role once session loading is complete
+      console.log("AppRoutes useEffect: Session loading complete, calling loadSettingsAndRole.");
       loadSettingsAndRole();
+    } else {
+      console.log("AppRoutes useEffect: Session still loading, waiting...");
     }
-  }, [isAuthenticated, isLoading, fetchUserRole, token]);
+  }, [isAuthenticated, isLoading, fetchUserRole, token]); // Dependencies
 
   // Helper function to check if a module is enabled and if user has permission
   const isModuleEnabled = (moduleKey: keyof AppSettings, requiredRoles: string[] = ['client', 'worker', 'administrator']) => {
