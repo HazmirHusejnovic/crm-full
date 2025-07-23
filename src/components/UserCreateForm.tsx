@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; // Dodato: Import Input komponente
+import { Input } from '@/components/ui/input';
 import {
   Form,
   FormControl,
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionContext';
-import api from '@/lib/api'; // Import novog API klijenta
+import api from '@/lib/api';
 
 const userCreateFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -40,7 +40,7 @@ interface UserCreateFormProps {
 }
 
 const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
-  const { user } = useSession(); // Get current user from session context
+  const { user } = useSession();
 
   const form = useForm<UserCreateFormValues>({
     resolver: zodResolver(userCreateFormSchema),
@@ -49,7 +49,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
       password: '',
       first_name: '',
       last_name: '',
-      role: 'client', // Default role
+      role: 'client',
     },
   });
 
@@ -60,8 +60,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      // Poziv na vaš Express API za kreiranje korisnika
-      const response = await api.post('/users', { // Pretpostavljena ruta za kreiranje korisnika
+      const response = await api.post('/users', {
         email: values.email,
         password: values.password,
         first_name: values.first_name,
@@ -69,7 +68,7 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess }) => {
         role: values.role,
       });
 
-      if (response.status === 201) { // Pretpostavljamo da API vraća 201 Created
+      if (response.status === 201) {
         toast.success('User created successfully!');
         form.reset();
         onSuccess?.();
