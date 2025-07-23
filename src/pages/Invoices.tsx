@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search, Printer, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface InvoiceItem {
   id: string;
@@ -58,7 +59,7 @@ interface Invoice {
 }
 
 const InvoicesPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,61 +69,22 @@ const InvoicesPage: React.FC = () => {
 
   const fetchInvoices = async () => {
     setLoading(true);
-    let query = supabase
-      .from('invoices')
-      .select(`
-        id,
-        invoice_number,
-        client_id,
-        issue_date,
-        due_date,
-        total_amount,
-        status,
-        created_by,
-        created_at,
-        currency_id,
-        invoice_items(
-          id,
-          description,
-          quantity,
-          unit_price,
-          vat_rate,
-          total,
-          service_id,
-          services(name)
-        ),
-        currency:currency_id(code, symbol)
-      `);
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.invoice_number = searchTerm;
+      }
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
 
-    if (searchTerm) {
-      query = query.ilike('invoice_number', `%${searchTerm}%`);
-    }
+      const { data } = await api.get('/invoices', { params }); // Pretpostavljena ruta
 
-    if (filterStatus !== 'all') {
-      query = query.eq('status', filterStatus);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to load invoices: ' + error.message);
-      setLoading(false);
-      return;
-    }
-
-    // Fetch client and creator profiles separately
-    const invoicesWithDetails = await Promise.all(data.map(async (invoice: any) => {
-      let clientProfile: ClientProfileDetails | null = null;
-      if (invoice.client_id) {
-        const { data: clientData, error: clientError } = await supabase
-          .from('profiles_with_auth_emails')
-          .select('id, first_name, last_name, email')
-          .eq('id', invoice.client_id)
-          .single();
-        if (clientError) {
-          console.error('Error fetching client profile for invoice:', invoice.id, clientError.message);
-          clientProfile = { id: invoice.client_id, first_name: 'Error', last_name: 'Fetching', email: 'Error fetching email' };
-        } else {
+      // API bi trebao vratiti joined podatke, ali ako ne, možete ih dohvatiti ovdje
+      const invoicesWithDetails = await Promise.all(data.map(async (invoice: any) => {
+        let clientProfile: ClientProfileDetails | null = null;
+        if (invoice.client_id) {
+          const { data: clientData } = await api.get(`/profiles/${invoice.client_id}`); // Pretpostavljena ruta
           clientProfile = {
             id: clientData.id,
             first_name: clientData.first_name,
@@ -130,56 +92,46 @@ const InvoicesPage: React.FC = () => {
             email: clientData.email || 'N/A',
           };
         }
-      }
 
-      let creatorProfileDetails: CreatorProfileDetails | null = null;
-      if (invoice.created_by) {
-        const { data: creatorData, error: creatorError } = await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('id', invoice.created_by)
-          .single();
-        if (creatorError) {
-          console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
-          creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
-        } else {
+        let creatorProfileDetails: CreatorProfileDetails | null = null;
+        if (invoice.created_by) {
+          const { data: creatorData } = await api.get(`/profiles/${invoice.created_by}`); // Pretpostavljena ruta
           creatorProfileDetails = {
             first_name: creatorData.first_name,
             last_name: creatorData.last_name,
           };
         }
-      }
 
-      return {
-        ...invoice,
-        client_profile: clientProfile,
-        creator_profile_details: creatorProfileDetails,
-      };
-    }));
+        return {
+          ...invoice,
+          client_profile: clientProfile,
+          creator_profile_details: creatorProfileDetails,
+        };
+      }));
 
-    setInvoices(invoicesWithDetails as Invoice[]);
-    setLoading(false);
+      setInvoices(invoicesWithDetails as Invoice[]);
+    } catch (error: any) {
+      toast.error('Failed to load invoices: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
     }
     fetchInvoices();
-  }, [supabase, searchTerm, filterStatus, session]);
+  }, [searchTerm, filterStatus, session]);
 
   const handleNewInvoiceClick = () => {
     navigate('/invoices/new');
@@ -196,30 +148,22 @@ const InvoicesPage: React.FC = () => {
   const handleDeleteInvoice = async (invoiceId: string) => {
     if (!window.confirm('Are you sure you want to delete this invoice and all its items?')) return;
 
-    const { error } = await supabase
-      .from('invoices')
-      .delete()
-      .eq('id', invoiceId);
-
-    if (error) {
-      toast.error('Failed to delete invoice: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/invoices/${invoiceId}`); // Pretpostavljena ruta
       toast.success('Invoice deleted successfully!');
       fetchInvoices();
+    } catch (error: any) {
+      toast.error('Failed to delete invoice: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleUpdateStatus = async (invoiceId: string, newStatus: Invoice['status']) => {
-    const { error } = await supabase
-      .from('invoices')
-      .update({ status: newStatus })
-      .eq('id', invoiceId);
-
-    if (error) {
-      toast.error('Failed to update invoice status: ' + error.message);
-    } else {
+    try {
+      await api.put(`/invoices/${invoiceId}/status`, { status: newStatus }); // Pretpostavljena ruta
       toast.success(`Invoice status updated to "${newStatus}"!`);
       fetchInvoices(); // Re-fetch to update the list
+    } catch (error: any) {
+      toast.error('Failed to update invoice status: ' + (error.response?.data?.message || error.message));
     }
   };
 

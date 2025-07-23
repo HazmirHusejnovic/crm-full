@@ -3,7 +3,8 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ProfileForm from '@/components/ProfileForm';
 import { toast } from 'sonner';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface Profile {
   id: string;
@@ -11,10 +12,11 @@ interface Profile {
   last_name: string | null;
   role: 'client' | 'worker' | 'administrator';
   email: string;
+  default_currency_id: string | null;
 }
 
 const ProfilePage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,62 +28,45 @@ const ProfilePage: React.FC = () => {
       }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from('profiles_with_auth_emails') // Use the new view
-        .select(`
-          id,
-          first_name,
-          last_name,
-          role,
-          email
-        `) // Select email directly
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) {
-        toast.error('Failed to load profile: ' + error.message);
-      } else if (data) {
+      try {
+        const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
         setProfile({
           id: data.id,
           first_name: data.first_name,
           last_name: data.last_name,
           role: data.role,
-          email: data.email || 'N/A', // Access email directly
+          email: data.email || 'N/A',
+          default_currency_id: data.default_currency_id,
         });
+      } catch (error: any) {
+        toast.error('Failed to load profile: ' + (error.response?.data?.message || error.message));
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
-  }, [supabase, session]);
+  }, [session]);
 
   const handleFormSuccess = () => {
     // Re-fetch profile to show updated data
     if (session?.user?.id) {
       setLoading(true);
-      supabase
-        .from('profiles_with_auth_emails') // Use the new view
-        .select(`
-          id,
-          first_name,
-          last_name,
-          role,
-          email
-        `) // Select email directly
-        .eq('id', session.user.id)
-        .single()
-        .then(({ data, error }) => {
-          if (error) {
-            toast.error('Failed to re-load profile: ' + error.message);
-          } else if (data) {
-            setProfile({
-              id: data.id,
-              first_name: data.first_name,
-              last_name: data.last_name,
-              role: data.role,
-              email: data.email || 'N/A', // Access email directly
-            });
-          }
+      api.get(`/profiles/${session.user.id}`) // Pretpostavljena ruta
+        .then(({ data }) => {
+          setProfile({
+            id: data.id,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            role: data.role,
+            email: data.email || 'N/A',
+            default_currency_id: data.default_currency_id,
+          });
+        })
+        .catch((error: any) => {
+          toast.error('Failed to re-load profile: ' + (error.response?.data?.message || error.message));
+        })
+        .finally(() => {
           setLoading(false);
         });
     }

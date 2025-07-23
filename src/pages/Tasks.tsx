@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface Task {
   id: string;
@@ -25,7 +26,7 @@ interface Task {
 }
 
 const TasksPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -36,58 +37,38 @@ const TasksPage: React.FC = () => {
 
   const fetchTasks = async () => {
     setLoading(true);
-    let query = supabase
-      .from('tasks')
-      .select(`
-        id,
-        title,
-        description,
-        status,
-        assigned_to,
-        created_by,
-        due_date,
-        created_at,
-        profiles!tasks_assigned_to_fkey(first_name, last_name),
-        creator_profile:profiles!tasks_created_by_fkey(first_name, last_name)
-      `);
-
-    if (searchTerm) {
-      query = query.ilike('title', `%${searchTerm}%`);
-    }
-
-    if (filterStatus !== 'all') {
-      query = query.eq('status', filterStatus);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to load tasks: ' + error.message);
-    } else {
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.title = searchTerm;
+      }
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
+      const { data } = await api.get('/tasks', { params }); // Pretpostavljena ruta
       setTasks(data as Task[]);
+    } catch (error: any) {
+      toast.error('Failed to load tasks: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
     }
     fetchTasks();
-  }, [supabase, searchTerm, filterStatus, session]);
+  }, [searchTerm, filterStatus, session]);
 
   const handleNewTaskClick = () => {
     setEditingTask(undefined);
@@ -105,16 +86,12 @@ const TasksPage: React.FC = () => {
   const handleDeleteTask = async (taskId: string) => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;
 
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', taskId);
-
-    if (error) {
-      toast.error('Failed to delete task: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/tasks/${taskId}`); // Pretpostavljena ruta
       toast.success('Task deleted successfully!');
       fetchTasks();
+    } catch (error: any) {
+      toast.error('Failed to delete task: ' + (error.response?.data?.message || error.message));
     }
   };
 

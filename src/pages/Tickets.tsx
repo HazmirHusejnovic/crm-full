@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { PlusCircle, Edit, Trash2, Search, FileText, Users, CalendarClock } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface Ticket {
   id: string;
@@ -39,7 +40,7 @@ interface TicketGroup {
 }
 
 const TicketsPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -53,86 +54,47 @@ const TicketsPage: React.FC = () => {
 
   const fetchTickets = async () => {
     setLoading(true);
-    let query = supabase
-      .from('tickets')
-      .select(`
-        id,
-        subject,
-        description,
-        status,
-        priority,
-        assigned_user_id,
-        assigned_group_id,
-        created_by,
-        linked_task_id,
-        linked_invoice_id,
-        sla_due_at,
-        sla_status,
-        attachments,
-        created_at,
-        profiles!tickets_assigned_user_id_fkey(first_name, last_name),
-        creator_profile:profiles!tickets_created_by_fkey(first_name, last_name),
-        tasks(title),
-        invoices(invoice_number),
-        ticket_groups(name)
-      `);
-
-    if (searchTerm) {
-      query = query.ilike('subject', `%${searchTerm}%`);
-    }
-
-    if (filterStatus !== 'all') {
-      query = query.eq('status', filterStatus);
-    }
-
-    if (filterGroupId !== 'all') {
-      query = query.eq('assigned_group_id', filterGroupId);
-    }
-
-    if (filterSlaStatus !== 'all') {
-      query = query.eq('sla_status', filterSlaStatus);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to load tickets: ' + error.message);
-    } else {
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.subject = searchTerm;
+      }
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
+      if (filterGroupId !== 'all') {
+        params.assigned_group_id = filterGroupId;
+      }
+      if (filterSlaStatus !== 'all') {
+        params.sla_status = filterSlaStatus;
+      }
+      const { data } = await api.get('/tickets', { params }); // Pretpostavljena ruta
       setTickets(data as Ticket[]);
+    } catch (error: any) {
+      toast.error('Failed to load tickets: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRoleAndGroups = async () => {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data: roleData } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(roleData.role);
-        }
 
-        const { data: groupsData, error: groupsError } = await supabase
-          .from('ticket_groups')
-          .select('id, name')
-          .order('name', { ascending: true });
-
-        if (groupsError) {
-          toast.error('Failed to load ticket groups for filter: ' + groupsError.message);
-        } else {
+          const { data: groupsData } = await api.get('/ticket-groups'); // Pretpostavljena ruta
           setTicketGroups(groupsData);
+        } catch (error: any) {
+          console.error('Error fetching user role or ticket groups:', error.response?.data || error.message);
+          toast.error('Failed to fetch necessary data.');
         }
       };
       fetchUserRoleAndGroups();
     }
     fetchTickets();
-  }, [supabase, searchTerm, filterStatus, filterGroupId, filterSlaStatus, session]);
+  }, [searchTerm, filterStatus, filterGroupId, filterSlaStatus, session]);
 
   const handleNewTicketClick = () => {
     setEditingTicket(undefined);
@@ -150,16 +112,12 @@ const TicketsPage: React.FC = () => {
   const handleDeleteTicket = async (ticketId: string) => {
     if (!window.confirm('Are you sure you want to delete this ticket?')) return;
 
-    const { error } = await supabase
-      .from('tickets')
-      .delete()
-      .eq('id', ticketId);
-
-    if (error) {
-      toast.error('Failed to delete ticket: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/tickets/${ticketId}`); // Pretpostavljena ruta
       toast.success('Ticket deleted successfully!');
       fetchTickets();
+    } catch (error: any) {
+      toast.error('Failed to delete ticket: ' + (error.response?.data?.message || error.message));
     }
   };
 

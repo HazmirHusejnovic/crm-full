@@ -14,6 +14,7 @@ import WikiCategoryForm from '@/components/WikiCategoryForm';
 import WikiArticleForm from '@/components/WikiArticleForm';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface WikiCategory {
   id: string;
@@ -49,7 +50,7 @@ interface WikiArticleVersion {
 }
 
 const WikiPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<WikiCategory[]>([]);
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [articleVersions, setArticleVersions] = useState<WikiArticleVersion[]>([]);
@@ -70,107 +71,69 @@ const WikiPage: React.FC = () => {
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
-    const { data, error } = await supabase
-      .from('wiki_categories')
-      .select('*')
-      .order('name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load wiki categories: ' + error.message);
-    } else {
+    try {
+      const { data } = await api.get('/wiki-categories'); // Pretpostavljena ruta
       setCategories(data as WikiCategory[]);
+    } catch (error: any) {
+      toast.error('Failed to load wiki categories: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingCategories(false);
     }
-    setLoadingCategories(false);
   };
 
   const fetchArticles = async () => {
     setLoadingArticles(true);
-    let query = supabase
-      .from('wiki_articles_with_details')
-      .select(`
-        id,
-        title,
-        content,
-        category_id,
-        visibility,
-        created_by,
-        updated_by,
-        created_at,
-        updated_at,
-        category_name,
-        creator_first_name,
-        creator_last_name,
-        updater_first_name,
-        updater_last_name
-      `);
-
-    if (searchTerm) {
-      query = query.ilike('title', `%${searchTerm}%`);
-    }
-
-    if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId);
-    }
-
-    if (filterVisibility !== 'all') {
-      query = query.eq('visibility', filterVisibility);
-    }
-
-    const { data, error } = await query.order('title', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load wiki articles: ' + error.message);
-    } else {
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.title = searchTerm;
+      }
+      if (filterCategoryId !== 'all') {
+        params.category_id = filterCategoryId;
+      }
+      if (filterVisibility !== 'all') {
+        params.visibility = filterVisibility;
+      }
+      const { data } = await api.get('/wiki-articles', { params }); // Pretpostavljena ruta
       setArticles(data as WikiArticle[]);
+    } catch (error: any) {
+      toast.error('Failed to load wiki articles: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingArticles(false);
     }
-    setLoadingArticles(false);
   };
 
   const fetchArticleVersions = async (articleId: string) => {
     setLoadingVersions(true);
-    const { data, error } = await supabase
-      .from('wiki_article_versions')
-      .select(`
-        id,
-        content,
-        edited_by,
-        edited_at,
-        editor_profile:profiles!wiki_article_versions_edited_by_fkey(first_name, last_name)
-      `)
-      .eq('article_id', articleId)
-      .order('edited_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to load article versions: ' + error.message);
-    } else {
+    try {
+      const { data } = await api.get(`/wiki-articles/${articleId}/versions`); // Pretpostavljena ruta
       setArticleVersions(data as WikiArticleVersion[]);
+    } catch (error: any) {
+      toast.error('Failed to load article versions: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingVersions(false);
     }
-    setLoadingVersions(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
     }
     fetchCategories();
-  }, [supabase, session]);
+  }, [session]);
 
   useEffect(() => {
     fetchArticles();
-  }, [supabase, searchTerm, filterCategoryId, filterVisibility, currentUserRole]);
+  }, [searchTerm, filterCategoryId, filterVisibility, currentUserRole]);
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -185,17 +148,13 @@ const WikiPage: React.FC = () => {
   const handleDeleteCategory = async (categoryId: string) => {
     if (!window.confirm('Are you sure you want to delete this category? Articles linked to this category will have their category set to null.')) return;
 
-    const { error } = await supabase
-      .from('wiki_categories')
-      .delete()
-      .eq('id', categoryId);
-
-    if (error) {
-      toast.error('Failed to delete category: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/wiki-categories/${categoryId}`); // Pretpostavljena ruta
       toast.success('Category deleted successfully!');
       fetchCategories();
       fetchArticles();
+    } catch (error: any) {
+      toast.error('Failed to delete category: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -223,16 +182,12 @@ const WikiPage: React.FC = () => {
   const handleDeleteArticle = async (articleId: string) => {
     if (!window.confirm('Are you sure you want to delete this article? This will also delete all its versions.')) return;
 
-    const { error } = await supabase
-      .from('wiki_articles')
-      .delete()
-      .eq('id', articleId);
-
-    if (error) {
-      toast.error('Failed to delete article: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/wiki-articles/${articleId}`); // Pretpostavljena ruta
       toast.success('Article deleted successfully!');
       fetchArticles();
+    } catch (error: any) {
+      toast.error('Failed to delete article: ' + (error.response?.data?.message || error.message));
     }
   };
 

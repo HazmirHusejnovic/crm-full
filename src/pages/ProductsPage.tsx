@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface ProductCategory {
   id: string;
@@ -34,7 +35,7 @@ interface Product {
 }
 
 const ProductsPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -49,77 +50,54 @@ const ProductsPage: React.FC = () => {
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
-    const { data, error } = await supabase
-      .from('product_categories')
-      .select('*')
-      .order('name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load product categories: ' + error.message);
-    } else {
+    try {
+      const { data } = await api.get('/product-categories'); // Pretpostavljena ruta
       setCategories(data as ProductCategory[]);
+    } catch (error: any) {
+      toast.error('Failed to load product categories: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingCategories(false);
     }
-    setLoadingCategories(false);
   };
 
   const fetchProducts = async () => {
     setLoadingProducts(true);
-    let query = supabase
-      .from('products')
-      .select(`
-        id,
-        name,
-        description,
-        price,
-        stock_quantity,
-        category_id,
-        sku,
-        vat_rate,
-        created_at,
-        product_categories(name)
-      `);
-
-    if (searchTerm) {
-      query = query.ilike('name', `%${searchTerm}%`);
-    }
-
-    if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId);
-    }
-
-    const { data, error } = await query.order('name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load products: ' + error.message);
-    } else {
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.name = searchTerm;
+      }
+      if (filterCategoryId !== 'all') {
+        params.category_id = filterCategoryId;
+      }
+      const { data } = await api.get('/products', { params }); // Pretpostavljena ruta
       setProducts(data as Product[]);
+    } catch (error: any) {
+      toast.error('Failed to load products: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingProducts(false);
     }
-    setLoadingProducts(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
     }
     fetchCategories();
-  }, [supabase, session]);
+  }, [session]);
 
   useEffect(() => {
     fetchProducts();
-  }, [supabase, searchTerm, filterCategoryId]);
+  }, [searchTerm, filterCategoryId]);
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -134,17 +112,13 @@ const ProductsPage: React.FC = () => {
   const handleDeleteCategory = async (categoryId: string) => {
     if (!window.confirm('Are you sure you want to delete this category? Products linked to this category will have their category set to null.')) return;
 
-    const { error } = await supabase
-      .from('product_categories')
-      .delete()
-      .eq('id', categoryId);
-
-    if (error) {
-      toast.error('Failed to delete category: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/product-categories/${categoryId}`); // Pretpostavljena ruta
       toast.success('Category deleted successfully!');
       fetchCategories();
       fetchProducts(); // Refresh products as well
+    } catch (error: any) {
+      toast.error('Failed to delete category: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -161,16 +135,12 @@ const ProductsPage: React.FC = () => {
   const handleDeleteProduct = async (productId: string) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
 
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
-
-    if (error) {
-      toast.error('Failed to delete product: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/products/${productId}`); // Pretpostavljena ruta
       toast.success('Product deleted successfully!');
       fetchProducts();
+    } catch (error: any) {
+      toast.error('Failed to delete product: ' + (error.response?.data?.message || error.message));
     }
   };
 

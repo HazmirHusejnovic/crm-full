@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import TaskStatusChart from '@/components/TaskStatusChart';
 import TicketStatusChart from '@/components/TicketStatusChart';
 import InvoiceStatusChart from '@/components/InvoiceStatusChart';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface TaskStatusData {
   name: string;
@@ -26,7 +27,7 @@ interface InvoiceStatusData {
 }
 
 const ReportsPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [loading, setLoading] = useState(true);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [ticketStatusData, setTicketStatusData] = useState<TicketStatusData[]>([]);
@@ -43,32 +44,16 @@ const ReportsPage: React.FC = () => {
       setLoading(true);
       let hasError = false;
 
-      const { data: roleData, error: roleError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (roleError) {
-        console.error('Error fetching user role:', roleError.message);
-        toast.error('Failed to fetch your user role.');
-        hasError = true;
-      } else {
+      try {
+        const { data: roleData } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
         setCurrentUserRole(roleData.role);
         if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
           setLoading(false);
           return; // Exit if not authorized
         }
-      }
 
-      // Fetch all tasks to count by status for the chart
-      const { data: allTasks, error: allTasksError } = await supabase
-        .from('tasks')
-        .select('status');
-
-      if (allTasksError) {
-        toast.error('Failed to load tasks for status counts: ' + allTasksError.message);
-        hasError = true;
-      } else {
+        // Fetch all tasks to count by status for the chart
+        const { data: allTasks } = await api.get('/tasks'); // Pretpostavljena ruta
         const statusCounts: { [key: string]: number } = {
           pending: 0,
           in_progress: 0,
@@ -89,17 +74,9 @@ const ReportsPage: React.FC = () => {
           { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
-      }
 
-      // Fetch all tickets to count by status for the chart
-      const { data: allTickets, error: allTicketsError } = await supabase
-        .from('tickets')
-        .select('status');
-
-      if (allTicketsError) {
-        toast.error('Failed to load tickets for status counts: ' + allTicketsError.message);
-        hasError = true;
-      } else {
+        // Fetch all tickets to count by status for the chart
+        const { data: allTickets } = await api.get('/tickets'); // Pretpostavljena ruta
         const ticketStatusCounts: { [key: string]: number } = {
           open: 0,
           in_progress: 0,
@@ -122,17 +99,9 @@ const ReportsPage: React.FC = () => {
           { name: 'Reopened', count: ticketStatusCounts.reopened, fill: 'hsl(var(--orange-600))' },
         ];
         setTicketStatusData(ticketChartData);
-      }
 
-      // Fetch all invoices to count by status for the chart
-      const { data: allInvoices, error: allInvoicesError } = await supabase
-        .from('invoices')
-        .select('status');
-
-      if (allInvoicesError) {
-        toast.error('Failed to load invoices for status counts: ' + allInvoicesError.message);
-        hasError = true;
-      } else {
+        // Fetch all invoices to count by status for the chart
+        const { data: allInvoices } = await api.get('/invoices'); // Pretpostavljena ruta
         const invoiceStatusCounts: { [key: string]: number } = {
           draft: 0,
           sent: 0,
@@ -155,13 +124,17 @@ const ReportsPage: React.FC = () => {
           { name: 'Cancelled', count: invoiceStatusCounts.cancelled, fill: 'hsl(var(--gray-500))' },
         ];
         setInvoiceStatusData(invoiceChartData);
-      }
 
-      setLoading(false);
+      } catch (error: any) {
+        toast.error('Failed to load report data: ' + (error.response?.data?.message || error.message));
+        hasError = true;
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchReportData();
-  }, [supabase, session]);
+  }, [session]);
 
   if (loading) {
     return (

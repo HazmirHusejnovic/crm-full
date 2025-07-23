@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { CircleCheck, Ticket, ListTodo } from 'lucide-react';
 import TaskStatusChart from '@/components/TaskStatusChart';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Import LoadingSpinner
+import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface DashboardStats {
   openTasks: number;
@@ -19,67 +20,47 @@ interface TaskStatusData {
 }
 
 const DashboardPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [taskStatusData, setTaskStatusData] = useState<TaskStatusData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      setLoading(false);
+      return;
+    }
 
     const fetchDashboardStats = async () => {
       setLoading(true);
       let hasError = false;
 
-      // Fetch open tasks count
-      const { count: openTasksCount, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress']);
+      try {
+        // Fetch open tasks count
+        const { data: openTasksCountData } = await api.get('/tasks/count', { params: { status: ['pending', 'in_progress'] } }); // Pretpostavljena ruta
+        const openTasksCount = openTasksCountData.count;
 
-      if (tasksError) {
-        toast.error('Failed to load tasks count: ' + tasksError.message);
-        hasError = true;
-      }
+        // Fetch open tickets count
+        const { data: openTicketsCountData } = await api.get('/tickets/count', { params: { status: ['open', 'in_progress', 'reopened'] } }); // Pretpostavljena ruta
+        const openTicketsCount = openTicketsCountData.count;
 
-      // Fetch open tickets count
-      const { count: openTicketsCount, error: ticketsError } = await supabase
-        .from('tickets')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['open', 'in_progress', 'reopened']);
+        // Fetch completed tasks today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
 
-      if (ticketsError) {
-        toast.error('Failed to load tickets count: ' + ticketsError.message);
-        hasError = true;
-      }
+        const { data: completedTasksTodayCountData } = await api.get('/tasks/count', {
+          params: {
+            status: 'completed',
+            updated_at_gte: today.toISOString(),
+            updated_at_lt: tomorrow.toISOString(),
+          },
+        }); // Pretpostavljena ruta
+        const completedTasksTodayCount = completedTasksTodayCountData.count;
 
-      // Fetch completed tasks today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-
-      const { count: completedTasksTodayCount, error: completedTasksError } = await supabase
-        .from('tasks')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'completed')
-        .gte('updated_at', today.toISOString())
-        .lt('updated_at', tomorrow.toISOString());
-
-      if (completedTasksError) {
-        toast.error('Failed to load completed tasks today count: ' + completedTasksError.message);
-        hasError = true;
-      }
-
-      // Fetch all tasks to count by status for the chart
-      const { data: allTasks, error: allTasksError } = await supabase
-        .from('tasks')
-        .select('status');
-
-      if (allTasksError) {
-        toast.error('Failed to load all tasks for status counts: ' + allTasksError.message);
-        hasError = true;
-      } else {
+        // Fetch all tasks to count by status for the chart
+        const { data: allTasks } = await api.get('/tasks'); // Pretpostavljena ruta
         const statusCounts: { [key: string]: number } = {
           pending: 0,
           in_progress: 0,
@@ -100,20 +81,22 @@ const DashboardPage: React.FC = () => {
           { name: 'Cancelled', count: statusCounts.cancelled, fill: 'hsl(var(--red-600))' },
         ];
         setTaskStatusData(chartData);
-      }
 
-      if (!hasError) {
         setStats({
           openTasks: openTasksCount || 0,
           openTickets: openTicketsCount || 0,
           completedTasksToday: completedTasksTodayCount || 0,
         });
+      } catch (error: any) {
+        toast.error('Failed to load dashboard stats: ' + (error.response?.data?.message || error.message));
+        hasError = true;
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchDashboardStats();
-  }, [supabase, session]);
+  }, [session]);
 
   if (loading) {
     return (

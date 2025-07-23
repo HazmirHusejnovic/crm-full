@@ -2,11 +2,15 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import LoadingSpinner from './LoadingSpinner';
-import MessageInput from './MessageInput'; // Will create this
+import MessageInput from './MessageInput';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api'; // Import novog API klijenta
+import io from 'socket.io-client'; // Import Socket.IO klijenta
+
+const SOCKET_SERVER_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'; // URL vašeg Express API-ja
 
 interface ChatMessage {
   id: string;
@@ -22,10 +26,11 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatId }) => {
-  const { supabase, session } = useSession();
+  const { session, token } = useSession(); // Session context sada pruža token
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,51 +39,47 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId }) => {
   useEffect(() => {
     const fetchMessages = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select(`
-          id,
-          chat_id,
-          sender_id,
-          content,
-          created_at,
-          profiles(first_name, last_name)
-        `)
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        toast.error('Failed to load messages: ' + error.message);
-        setMessages([]);
-      } else {
+      try {
+        const { data } = await api.get(`/chats/${chatId}/messages`); // Pretpostavljena ruta
         setMessages(data as ChatMessage[]);
+      } catch (error: any) {
+        toast.error('Failed to load messages: ' + (error.response?.data?.message || error.message));
+        setMessages([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchMessages();
 
-    // Set up real-time listener for new messages in this chat
-    const channel = supabase
-      .channel(`chat:${chatId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
-        (payload) => {
-          const newMessage = payload.new as ChatMessage;
-          setMessages((prevMessages) => [...prevMessages, newMessage]);
-          // Update last_message_at for the chat
-          supabase.from('chats').update({ last_message_at: newMessage.created_at }).eq('id', chatId).then(({ error }) => {
-            if (error) console.error('Failed to update chat last_message_at:', error.message);
-          });
-        }
-      )
-      .subscribe();
+    // Postavljanje Socket.IO veze
+    if (token) {
+      socketRef.current = io(SOCKET_SERVER_URL, {
+        query: { token }, // Proslijedite token za autentifikaciju
+      });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, chatId]);
+      socketRef.current.emit('joinChat', chatId);
+
+      socketRef.current.on('newMessage', (newMessage: ChatMessage) => {
+        if (newMessage.chat_id === chatId) {
+          setMessages((prevMessages) => [...prevMessages, newMessage]);
+          // Ažurirajte last_message_at za chat putem API-ja
+          api.put(`/chats/${chatId}`, { last_message_at: newMessage.created_at })
+            .catch(err => console.error('Failed to update chat last_message_at:', err.response?.data || err.message));
+        }
+      });
+
+      socketRef.current.on('connect_error', (err: any) => {
+        console.error('Socket.IO connection error:', err.message);
+        toast.error('Chat connection error. Please refresh.');
+      });
+
+      return () => {
+        socketRef.current.emit('leaveChat', chatId);
+        socketRef.current.disconnect();
+      };
+    }
+  }, [chatId, token]); // Dodajte token kao zavisnost
 
   useEffect(() => {
     scrollToBottom();
@@ -91,14 +92,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId }) => {
     }
     if (!content.trim()) return;
 
-    const { error } = await supabase.from('chat_messages').insert({
-      chat_id: chatId,
-      sender_id: session.user.id,
-      content: content.trim(),
-    });
-
-    if (error) {
-      toast.error('Failed to send message: ' + error.message);
+    try {
+      // Šaljite poruku putem Socket.IO
+      socketRef.current.emit('sendMessage', {
+        chat_id: chatId,
+        sender_id: session.user.id,
+        content: content.trim(),
+      });
+    } catch (error: any) {
+      toast.error('Failed to send message: ' + (error.response?.data?.message || error.message));
     }
   };
 

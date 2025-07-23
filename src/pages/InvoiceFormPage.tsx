@@ -7,7 +7,7 @@ import InvoiceForm from '@/components/InvoiceForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-// Removed MainLayout import as it's already provided by the router
+import api from '@/lib/api'; // Import novog API klijenta
 
 // Define the Invoice type based on what InvoiceForm expects as initialData
 interface InvoiceFormData {
@@ -31,7 +31,7 @@ interface InvoiceFormData {
 const InvoiceFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [initialData, setInitialData] = useState<InvoiceFormData | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,37 +40,8 @@ const InvoiceFormPage: React.FC = () => {
     const fetchInvoiceData = async () => {
       if (id) {
         setLoading(true);
-        const { data, error: fetchError } = await supabase
-          .from('invoices')
-          .select(`
-            id,
-            invoice_number,
-            client_id,
-            issue_date,
-            due_date,
-            total_amount,
-            status,
-            created_by,
-            invoice_items(
-              id,
-              service_id,
-              description,
-              quantity,
-              unit_price,
-              vat_rate
-            )
-          `)
-          .eq('id', id)
-          .single();
-
-        if (fetchError) {
-          toast.error('Failed to load invoice for editing: ' + fetchError.message);
-          setError('Failed to load invoice for editing.');
-          setLoading(false);
-          return;
-        }
-
-        if (data) {
+        try {
+          const { data } = await api.get(`/invoices/${id}`); // Pretpostavljena ruta
           setInitialData({
             id: data.id,
             invoice_number: data.invoice_number,
@@ -79,7 +50,7 @@ const InvoiceFormPage: React.FC = () => {
             due_date: data.due_date,
             status: data.status,
             created_by: data.created_by,
-            items: data.invoice_items.map(item => ({
+            items: data.invoice_items.map((item: any) => ({
               id: item.id,
               service_id: item.service_id,
               description: item.description,
@@ -88,13 +59,19 @@ const InvoiceFormPage: React.FC = () => {
               vat_rate: item.vat_rate,
             })),
           });
+        } catch (fetchError: any) {
+          toast.error('Failed to load invoice for editing: ' + (fetchError.response?.data?.message || fetchError.message));
+          setError('Failed to load invoice for editing.');
+        } finally {
+          setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchInvoiceData();
-  }, [id, supabase]);
+  }, [id]);
 
   const handleSuccess = () => {
     toast.success(id ? 'Invoice updated successfully!' : 'Invoice created successfully!');

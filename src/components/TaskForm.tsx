@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const taskFormSchema = z.object({
   title: z.string().min(1, { message: 'Title is required.' }),
@@ -46,7 +47,7 @@ interface Profile {
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [workers, setWorkers] = useState<Profile[]>([]);
 
   const form = useForm<TaskFormValues>({
@@ -62,20 +63,16 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
 
   useEffect(() => {
     const fetchWorkers = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, role')
-        .eq('role', 'worker');
-
-      if (error) {
-        toast.error('Failed to load workers: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/profiles?role=worker'); // Pretpostavljena ruta
         setWorkers(data);
+      } catch (error: any) {
+        toast.error('Failed to load workers: ' + (error.response?.data?.message || error.message));
       }
     };
 
     fetchWorkers();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (values: TaskFormValues) => {
     if (!session?.user?.id) {
@@ -90,28 +87,19 @@ const TaskForm: React.FC<TaskFormProps> = ({ initialData, onSuccess }) => {
       assigned_to: values.assigned_to === 'null-value' ? null : values.assigned_to, // Handle null-value
     };
 
-    let error = null;
-    if (initialData?.id) {
-      // Update existing task
-      const { error: updateError } = await supabase
-        .from('tasks')
-        .update(taskData)
-        .eq('id', initialData.id);
-      error = updateError;
-    } else {
-      // Create new task
-      const { error: insertError } = await supabase
-        .from('tasks')
-        .insert(taskData);
-      error = insertError;
-    }
-
-    if (error) {
-      toast.error('Failed to save task: ' + error.message);
-    } else {
+    try {
+      if (initialData?.id) {
+        // Update existing task
+        await api.put(`/tasks/${initialData.id}`, taskData); // Pretpostavljena ruta
+      } else {
+        // Create new task
+        await api.post('/tasks', taskData); // Pretpostavljena ruta
+      }
       toast.success('Task saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save task: ' + (err.response?.data?.message || err.message));
     }
   };
 

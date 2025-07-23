@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { format } from 'date-fns';
 import { ArrowLeft, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface InvoiceItem {
   id: string;
@@ -56,7 +57,7 @@ interface Invoice {
 const PrintableInvoice: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supabase } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,91 +70,19 @@ const PrintableInvoice: React.FC = () => {
       }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from('invoices')
-        .select(`
-          id,
-          invoice_number,
-          client_id,
-          issue_date,
-          due_date,
-          total_amount,
-          status,
-          created_by,
-          created_at,
-          currency_id,
-          invoice_items(
-            id,
-            description,
-            quantity,
-            unit_price,
-            vat_rate,
-            total,
-            service_id,
-            services(name)
-          ),
-          currency:currency_id(code, symbol)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        toast.error('Failed to load invoice: ' + error.message);
+      try {
+        const { data } = await api.get(`/invoices/${id}/details`); // Pretpostavljena ruta za detalje fakture
+        setInvoice(data as Invoice);
+      } catch (error: any) {
+        toast.error('Failed to load invoice: ' + (error.response?.data?.message || error.message));
         setInvoice(null);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      if (data) {
-        let clientProfile: ClientProfileDetails | null = null;
-        if (data.client_id) {
-          const { data: clientData, error: clientError } = await supabase
-            .from('profiles_with_auth_emails') // Use the new view
-            .select('id, first_name, last_name, email') // Select email directly
-            .eq('id', data.client_id)
-            .single();
-          if (clientError) {
-            console.error('Error fetching client profile for printable invoice:', data.id, clientError.message);
-            clientProfile = { id: data.client_id, first_name: 'Error', last_name: 'Fetching', email: 'Error fetching email' };
-          } else {
-            clientProfile = {
-              id: clientData.id,
-              first_name: clientData.first_name,
-              last_name: clientData.last_name,
-              email: clientData.email || 'N/A', // Access email directly
-            };
-          }
-        }
-
-        let creatorProfileDetails: CreatorProfileDetails | null = null;
-        if (data.created_by) {
-          const { data: creatorData, error: creatorError } = await supabase
-            .from('profiles')
-            .select('first_name, last_name')
-            .eq('id', data.created_by)
-            .single();
-          if (creatorError) {
-            console.error('Error fetching creator profile for printable invoice:', data.id, creatorError.message);
-            creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
-          } else {
-            creatorProfileDetails = {
-              first_name: creatorData.first_name,
-              last_name: creatorData.last_name,
-            };
-          }
-        }
-
-        setInvoice({
-          ...data,
-          client_profile: clientProfile,
-          creator_profile_details: creatorProfileDetails,
-        } as Invoice);
-      }
-      setLoading(false);
     };
 
     fetchInvoice();
-  }, [id, supabase]);
+  }, [id]);
 
   useEffect(() => {
     if (!loading && invoice) {

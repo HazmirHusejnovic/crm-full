@@ -23,6 +23,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css'; // Import Quill styles
+import api from '@/lib/api'; // Import novog API klijenta
 
 const wikiArticleFormSchema = z.object({
   title: z.string().min(1, { message: 'Article title is required.' }),
@@ -44,7 +45,7 @@ interface WikiCategory {
 }
 
 const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<WikiCategory[]>([]);
 
   const form = useForm<WikiArticleFormValues>({
@@ -59,19 +60,15 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const { data, error } = await supabase
-        .from('wiki_categories')
-        .select('id, name')
-        .order('name', { ascending: true });
-
-      if (error) {
-        toast.error('Failed to load wiki categories: ' + error.message);
-      } else {
+      try {
+        const { data } = await api.get('/wiki-categories'); // Pretpostavljena ruta
         setCategories(data);
+      } catch (error: any) {
+        toast.error('Failed to load wiki categories: ' + (error.response?.data?.message || error.message));
       }
     };
     fetchCategories();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (values: WikiArticleFormValues) => {
     if (!session?.user?.id) {
@@ -86,60 +83,31 @@ const WikiArticleForm: React.FC<WikiArticleFormProps> = ({ initialData, onSucces
       updated_by: session.user.id,
     };
 
-    let error = null;
-    if (initialData?.id) {
-      // Update existing article
-      const { error: updateError } = await supabase
-        .from('wiki_articles')
-        .update(articleData)
-        .eq('id', initialData.id);
-      error = updateError;
-
-      // Create a new version entry
-      if (!error) {
-        const { error: versionError } = await supabase
-          .from('wiki_article_versions')
-          .insert({
-            article_id: initialData.id,
-            content: values.content,
-            edited_by: session.user.id,
-          });
-        if (versionError) {
-          console.error('Failed to save article version:', versionError.message);
-          toast.warning('Article updated, but failed to save version history.');
-        }
+    try {
+      if (initialData?.id) {
+        // Update existing article
+        await api.put(`/wiki-articles/${initialData.id}`, articleData); // Pretpostavljena ruta
+        // Create a new version entry (assuming API handles this or a separate endpoint)
+        await api.post('/wiki-article-versions', {
+          article_id: initialData.id,
+          content: values.content,
+          edited_by: session.user.id,
+        });
+      } else {
+        // Create new article
+        const { data: newArticle } = await api.post('/wiki-articles', articleData); // Pretpostavljena ruta
+        // Create initial version entry for new article
+        await api.post('/wiki-article-versions', {
+          article_id: newArticle.id,
+          content: values.content,
+          edited_by: session.user.id,
+        });
       }
-    } else {
-      // Create new article
-      const { data: newArticle, error: insertError } = await supabase
-        .from('wiki_articles')
-        .insert(articleData)
-        .select('id')
-        .single();
-      error = insertError;
-
-      // Create initial version entry for new article
-      if (!error && newArticle) {
-        const { error: versionError } = await supabase
-          .from('wiki_article_versions')
-          .insert({
-            article_id: newArticle.id,
-            content: values.content,
-            edited_by: session.user.id,
-          });
-        if (versionError) {
-          console.error('Failed to save initial article version:', versionError.message);
-          toast.warning('Article created, but failed to save initial version history.');
-        }
-      }
-    }
-
-    if (error) {
-      toast.error('Failed to save article: ' + error.message);
-    } else {
       toast.success('Article saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save article: ' + (err.response?.data?.message || err.message));
     }
   };
 

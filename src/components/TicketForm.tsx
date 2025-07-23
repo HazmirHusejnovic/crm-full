@@ -23,6 +23,7 @@ import {
 import { useSession } from '@/contexts/SessionContext';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import api from '@/lib/api'; // Import novog API klijenta
 
 const ticketFormSchema = z.object({
   subject: z.string().min(1, { message: 'Subject is required.' }),
@@ -67,7 +68,7 @@ interface TicketGroup {
 }
 
 const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [workers, setWorkers] = useState<Profile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]); // New state
@@ -92,55 +93,40 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
   useEffect(() => {
     const fetchData = async () => {
       // Fetch workers
-      const { data: workersData, error: workersError } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, role')
-        .eq('role', 'worker');
-
-      if (workersError) {
-        toast.error('Failed to load workers: ' + workersError.message);
-      } else {
+      try {
+        const { data: workersData } = await api.get('/profiles?role=worker'); // Pretpostavljena ruta
         setWorkers(workersData);
+      } catch (error: any) {
+        toast.error('Failed to load workers: ' + (error.response?.data?.message || error.message));
       }
 
       // Fetch tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select('id, title');
-
-      if (tasksError) {
-        toast.error('Failed to load tasks: ' + tasksError.message);
-      } else {
+      try {
+        const { data: tasksData } = await api.get('/tasks'); // Pretpostavljena ruta
         setTasks(tasksData);
+      } catch (error: any) {
+        toast.error('Failed to load tasks: ' + (error.response?.data?.message || error.message));
       }
 
       // Fetch invoices (new)
-      const { data: invoicesData, error: invoicesError } = await supabase
-        .from('invoices')
-        .select('id, invoice_number')
-        .order('invoice_number', { ascending: false });
-
-      if (invoicesError) {
-        toast.error('Failed to load invoices: ' + invoicesError.message);
-      } else {
+      try {
+        const { data: invoicesData } = await api.get('/invoices'); // Pretpostavljena ruta
         setInvoices(invoicesData);
+      } catch (error: any) {
+        toast.error('Failed to load invoices: ' + (error.response?.data?.message || error.message));
       }
 
       // Fetch ticket groups (new)
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('ticket_groups')
-        .select('id, name')
-        .order('name', { ascending: true });
-
-      if (groupsError) {
-        toast.error('Failed to load ticket groups: ' + groupsError.message);
-      } else {
+      try {
+        const { data: groupsData } = await api.get('/ticket-groups'); // Pretpostavljena ruta
         setTicketGroups(groupsData);
+      } catch (error: any) {
+        toast.error('Failed to load ticket groups: ' + (error.response?.data?.message || error.message));
       }
     };
 
     fetchData();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (values: TicketFormValues) => {
     if (!session?.user?.id) {
@@ -158,28 +144,19 @@ const TicketForm: React.FC<TicketFormProps> = ({ initialData, onSuccess }) => {
       sla_due_at: values.sla_due_at ? new Date(values.sla_due_at).toISOString() : null, // Convert to ISO string
     };
 
-    let error = null;
-    if (initialData?.id) {
-      // Update existing ticket
-      const { error: updateError } = await supabase
-        .from('tickets')
-        .update(ticketData)
-        .eq('id', initialData.id);
-      error = updateError;
-    } else {
-      // Create new ticket
-      const { error: insertError } = await supabase
-        .from('tickets')
-        .insert(ticketData);
-      error = insertError;
-    }
-
-    if (error) {
-      toast.error('Failed to save ticket: ' + error.message);
-    } else {
+    try {
+      if (initialData?.id) {
+        // Update existing ticket
+        await api.put(`/tickets/${initialData.id}`, ticketData); // Pretpostavljena ruta
+      } else {
+        // Create new ticket
+        await api.post('/tickets', ticketData); // Pretpostavljena ruta
+      }
       toast.success('Ticket saved successfully!');
       form.reset();
       onSuccess?.();
+    } catch (err: any) {
+      toast.error('Failed to save ticket: ' + (err.response?.data?.message || err.message));
     }
   };
 

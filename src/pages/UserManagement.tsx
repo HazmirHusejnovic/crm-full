@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Edit, Search, Eye, UserPlus, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface Profile {
   id: string;
@@ -22,7 +23,7 @@ interface Profile {
 }
 
 const UserManagementPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,56 +36,38 @@ const UserManagementPage: React.FC = () => {
 
   const fetchProfiles = async () => {
     setLoading(true);
-    let query = supabase
-      .from('profiles_with_auth_emails')
-      .select(`
-        id,
-        first_name,
-        last_name,
-        role,
-        email,
-        default_currency_id
-      `);
-
-    if (searchTerm) {
-      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
-    }
-
-    if (filterRole !== 'all') {
-      query = query.eq('role', filterRole);
-    }
-
-    const { data, error } = await query.order('first_name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load profiles: ' + error.message);
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.search = searchTerm; // API bi trebao pretraživati po imenu ili emailu
+      }
+      if (filterRole !== 'all') {
+        params.role = filterRole;
+      }
+      const { data } = await api.get('/profiles', { params }); // Pretpostavljena ruta
+      setProfiles(data as Profile[]);
+    } catch (error: any) {
+      toast.error('Failed to load profiles: ' + (error.response?.data?.message || error.message));
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setProfiles(data as Profile[]);
-    setLoading(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
-      fetchProfiles();
     }
-  }, [supabase, session, searchTerm, filterRole]);
+    fetchProfiles();
+  }, [searchTerm, filterRole, session]);
 
   const handleEditProfileClick = (profile: Profile) => {
     setEditingProfile(profile);
@@ -106,25 +89,11 @@ const UserManagementPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch('https://ulkesgvggxkopvwnaqju.supabase.co/functions/v1/delete-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete user.');
-      }
-
+      const response = await api.delete(`/users/${userId}`); // Pretpostavljena ruta za brisanje korisnika
       toast.success('User deleted successfully!');
       fetchProfiles();
     } catch (error: any) {
-      toast.error('Error deleting user: ' + error.message);
+      toast.error('Error deleting user: ' + (error.response?.data?.message || error.message));
     }
   };
 

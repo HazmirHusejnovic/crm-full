@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface Product {
   id: string;
@@ -53,7 +54,7 @@ interface ExchangeRate {
 }
 
 const POSPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,21 +75,17 @@ const POSPage: React.FC = () => {
       let hasError = false;
 
       if (session) {
-        const { data: roleData, error: roleError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (roleError) {
-          console.error('Error fetching user role:', roleError.message);
-          toast.error('Failed to fetch your user role.');
-          hasError = true;
-        } else {
+        try {
+          const { data: roleData } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(roleData.role);
           if (roleData.role !== 'worker' && roleData.role !== 'administrator') {
             setLoading(false);
             return; // Exit if not authorized
           }
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
+          hasError = true;
         }
       } else {
         setLoading(false);
@@ -96,92 +93,59 @@ const POSPage: React.FC = () => {
       }
 
       // Fetch app settings for default currency
-      const { data: appSettings, error: settingsError } = await supabase
-        .from('app_settings')
-        .select('default_currency_id')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single();
-
-      if (settingsError) {
-        console.error('Failed to load app settings:', settingsError.message);
-        toast.error('Failed to load app settings.');
-        hasError = true;
-      } else {
+      try {
+        const { data: appSettings } = await api.get('/app-settings'); // Pretpostavljena ruta
         setAppDefaultCurrencyId(appSettings?.default_currency_id || null);
         if (!selectedCurrencyId) { // Set initial selected currency to app default if not already set
           setSelectedCurrencyId(appSettings?.default_currency_id || null);
         }
+      } catch (error: any) {
+        console.error('Failed to load app settings:', error.response?.data || error.message);
+        toast.error('Failed to load app settings.');
+        hasError = true;
       }
 
       // Fetch currencies
-      const { data: currenciesData, error: currenciesError } = await supabase
-        .from('currencies')
-        .select('*')
-        .order('code', { ascending: true });
-      if (currenciesError) {
-        toast.error('Failed to load currencies: ' + currenciesError.message);
-        hasError = true;
-      } else {
+      try {
+        const { data: currenciesData } = await api.get('/currencies'); // Pretpostavljena ruta
         setCurrencies(currenciesData);
+      } catch (error: any) {
+        toast.error('Failed to load currencies: ' + (error.response?.data?.message || error.message));
+        hasError = true;
       }
 
       // Fetch exchange rates
-      const { data: ratesData, error: ratesError } = await supabase
-        .from('exchange_rates')
-        .select('*');
-      if (ratesError) {
-        toast.error('Failed to load exchange rates: ' + ratesError.message);
-        hasError = true;
-      } else {
+      try {
+        const { data: ratesData } = await api.get('/exchange-rates'); // Pretpostavljena ruta
         setExchangeRates(ratesData);
+      } catch (error: any) {
+        toast.error('Failed to load exchange rates: ' + (error.response?.data?.message || error.message));
+        hasError = true;
       }
 
       // Fetch products
-      let productQuery = supabase
-        .from('products')
-        .select(`
-          id,
-          name,
-          description,
-          price,
-          stock_quantity,
-          sku,
-          vat_rate,
-          product_categories(name)
-        `)
-        .order('name', { ascending: true });
-
-      if (searchTerm) {
-        productQuery = productQuery.or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
-      }
-
-      const { data: productsData, error: productsError } = await productQuery;
-
-      if (productsError) {
-        toast.error('Failed to load products: ' + productsError.message);
-        hasError = true;
-      } else {
+      try {
+        const { data: productsData } = await api.get('/products', { params: { searchTerm } }); // Pretpostavljena ruta
         setProducts(productsData as Product[]);
+      } catch (error: any) {
+        toast.error('Failed to load products: ' + (error.response?.data?.message || error.message));
+        hasError = true;
       }
 
       // Fetch clients
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('profiles_with_auth_emails')
-        .select('id, first_name, last_name, email, default_currency_id')
-        .eq('role', 'client');
-
-      if (clientsError) {
-        toast.error('Failed to load clients: ' + clientsError.message);
-        hasError = true;
-      } else {
+      try {
+        const { data: clientsData } = await api.get('/profiles?role=client'); // Pretpostavljena ruta
         setClients(clientsData as ClientProfile[]);
+      } catch (error: any) {
+        toast.error('Failed to load clients: ' + (error.response?.data?.message || error.message));
+        hasError = true;
       }
 
       setLoading(false);
     };
 
     fetchData();
-  }, [supabase, searchTerm, selectedCurrencyId, session]);
+  }, [searchTerm, selectedCurrencyId, session]);
 
   // Update selected currency when client changes
   useEffect(() => {
@@ -221,6 +185,16 @@ const POSPage: React.FC = () => {
   const getCurrencySymbol = (currencyId: string | null): string => {
     const currency = currencies.find(c => c.id === currencyId);
     return currency ? currency.symbol : '$'; // Default to $ if not found
+  };
+
+  const calculateItemTotal = (item: CartItem) => {
+    // Assuming product.price is in the app's default currency
+    const convertedPrice = convertPrice(item.price, appDefaultCurrencyId || '', selectedCurrencyId || '');
+    return convertedPrice * item.quantity * (1 + item.vat_rate);
+  };
+
+  const calculateTotal = () => {
+    return cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
   const addToCart = (product: Product) => {
@@ -263,16 +237,6 @@ const POSPage: React.FC = () => {
     });
   };
 
-  const calculateItemTotal = (item: CartItem) => {
-    // Assuming product.price is in the app's default currency
-    const convertedPrice = convertPrice(item.price, appDefaultCurrencyId || '', selectedCurrencyId || '');
-    return convertedPrice * item.quantity * (1 + item.vat_rate);
-  };
-
-  const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-  };
-
   const handleProcessSale = async () => {
     if (!session?.user?.id) {
       toast.error('User not authenticated. Please log in.');
@@ -298,24 +262,16 @@ const POSPage: React.FC = () => {
       const totalAmount = calculateTotal();
 
       // 1. Create the invoice
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({
-          invoice_number: invoiceNumber,
-          client_id: selectedClientId,
-          issue_date: issueDate,
-          due_date: dueDate,
-          total_amount: totalAmount,
-          status: 'paid', // Mark as paid for immediate POS sale
-          created_by: session.user.id,
-          currency_id: selectedCurrencyId, // Save the selected currency with the invoice
-        })
-        .select('id')
-        .single();
-
-      if (invoiceError) {
-        throw new Error('Failed to create invoice: ' + invoiceError.message);
-      }
+      const { data: invoiceData } = await api.post('/invoices', { // Pretpostavljena ruta
+        invoice_number: invoiceNumber,
+        client_id: selectedClientId,
+        issue_date: issueDate,
+        due_date: dueDate,
+        total_amount: totalAmount,
+        status: 'paid', // Mark as paid for immediate POS sale
+        created_by: session.user.id,
+        currency_id: selectedCurrencyId, // Save the selected currency with the invoice
+      });
 
       const invoiceId = invoiceData.id;
 
@@ -336,23 +292,14 @@ const POSPage: React.FC = () => {
       }));
 
       // 3. Insert invoice items
-      const { error: itemsError } = await supabase
-        .from('invoice_items')
-        .insert(invoiceItems);
-
-      if (itemsError) {
-        throw new Error('Failed to add invoice items: ' + itemsError.message);
-      }
+      await api.post('/invoice-items/bulk', invoiceItems); // Pretpostavljena ruta za bulk insert
 
       // 4. Update product stock quantities
       for (const update of stockUpdates) {
-        const { error: stockUpdateError } = await supabase
-          .from('products')
-          .update({ stock_quantity: update.new_stock_quantity })
-          .eq('id', update.id);
-
-        if (stockUpdateError) {
-          console.error(`Failed to update stock for product ${update.id}:`, stockUpdateError.message);
+        try {
+          await api.put(`/products/${update.id}/stock`, { stock_quantity: update.new_stock_quantity }); // Pretpostavljena ruta
+        } catch (stockUpdateError: any) {
+          console.error(`Failed to update stock for product ${update.id}:`, stockUpdateError.response?.data || stockUpdateError.message);
           // Decide if you want to roll back or just log and continue
           // For now, we'll just log and let the sale proceed, but in a real app, you might want to handle this more robustly.
         }

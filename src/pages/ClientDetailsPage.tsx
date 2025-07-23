@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import TaskForm from '@/components/TaskForm';
 import TicketForm from '@/components/TicketForm';
 import InvoiceForm from '@/components/InvoiceForm';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface ClientProfile {
   id: string;
@@ -67,7 +68,7 @@ interface ClientInvoice {
 const ClientDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
   const [clientTasks, setClientTasks] = useState<ClientTask[]>([]);
   const [clientTickets, setClientTickets] = useState<ClientTicket[]>([]);
@@ -89,44 +90,17 @@ const ClientDetailsPage: React.FC = () => {
     setLoading(true);
     let hasError = false;
 
-    // Fetch current user's role for access control
-    const { data: userRoleData, error: userRoleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (userRoleError) {
-      console.error('Error fetching current user role:', userRoleError.message);
-      toast.error('Failed to fetch your user role.');
-      hasError = true;
-    } else {
+    try {
+      // Fetch current user's role for access control
+      const { data: userRoleData } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
       setCurrentUserRole(userRoleData.role);
       if (userRoleData.role !== 'administrator') {
         setLoading(false);
         return;
       }
-    }
 
-    // Fetch client profile
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles_with_auth_emails')
-      .select(`
-          id,
-          first_name,
-          last_name,
-          role,
-          email,
-          default_currency_id,
-          currencies(code, symbol)
-        `)
-      .eq('id', id)
-      .single();
-
-    if (profileError) {
-      toast.error('Failed to load client profile: ' + profileError.message);
-      hasError = true;
-    } else if (profileData) {
+      // Fetch client profile
+      const { data: profileData } = await api.get(`/profiles/${id}`); // Pretpostavljena ruta
       setClientProfile({
         id: profileData.id,
         first_name: profileData.first_name,
@@ -134,108 +108,32 @@ const ClientDetailsPage: React.FC = () => {
         role: profileData.role,
         email: profileData.email || 'N/A',
         default_currency_id: profileData.default_currency_id,
-        default_currency: profileData.currencies,
+        default_currency: profileData.currency, // Pretpostavljamo da API vraća joined currency
       });
-    }
 
-    // Fetch client's tasks (created by or assigned to)
-    const { data: tasksData, error: tasksError } = await supabase
-      .from('tasks')
-      .select(`
-          id,
-          title,
-          status,
-          due_date,
-          created_at,
-          assigned_to,
-          created_by,
-          profiles!tasks_assigned_to_fkey(first_name, last_name),
-          creator_profile:profiles!tasks_created_by_fkey(first_name, last_name)
-        `)
-      .or(`created_by.eq.${id},assigned_to.eq.${id}`)
-      .order('created_at', { ascending: false });
-
-    if (tasksError) {
-      toast.error('Failed to load client tasks: ' + tasksError.message);
-      hasError = true;
-    } else {
+      // Fetch client's tasks (created by or assigned to)
+      const { data: tasksData } = await api.get(`/tasks?clientId=${id}`); // Pretpostavljena ruta
       setClientTasks(tasksData as ClientTask[]);
-    }
 
-    // Fetch client's tickets (created by or assigned to)
-    const { data: ticketsData, error: ticketsError } = await supabase
-      .from('tickets')
-      .select(`
-          id,
-          subject,
-          status,
-          priority,
-          created_at,
-          assigned_to,
-          created_by,
-          profiles!tickets_assigned_to_fkey(first_name, last_name),
-          creator_profile:profiles!tickets_created_by_fkey(first_name, last_name),
-          tasks(title)
-        `)
-      .or(`created_by.eq.${id},assigned_to.eq.${id}`)
-      .order('created_at', { ascending: false });
-
-    if (ticketsError) {
-      toast.error('Failed to load client tickets: ' + ticketsError.message);
-      hasError = true;
-    } else {
+      // Fetch client's tickets (created by or assigned to)
+      const { data: ticketsData } = await api.get(`/tickets?clientId=${id}`); // Pretpostavljena ruta
       setClientTickets(ticketsData as ClientTicket[]);
-    }
 
-    // Fetch client's invoices
-    const { data: invoicesData, error: invoicesError } = await supabase
-      .from('invoices')
-      .select(`
-          id,
-          invoice_number,
-          issue_date,
-          due_date,
-          total_amount,
-          status,
-          created_at,
-          created_by
-        `)
-      .eq('client_id', id)
-      .order('created_at', { ascending: false });
+      // Fetch client's invoices
+      const { data: invoicesData } = await api.get(`/invoices?clientId=${id}`); // Pretpostavljena ruta
+      setClientInvoices(invoicesData as ClientInvoice[]);
 
-    if (invoicesError) {
-      toast.error('Failed to load client invoices: ' + invoicesError.message);
+    } catch (error: any) {
+      toast.error('Failed to load client details: ' + (error.response?.data?.message || error.message));
       hasError = true;
-    } else {
-      const invoicesWithCreatorDetails = await Promise.all(invoicesData.map(async (invoice: any) => {
-        let creatorProfileDetails: CreatorProfileDetails | null = null;
-        if (invoice.created_by) {
-          const { data: creatorData, error: creatorError } = await supabase
-            .from('profiles')
-            .select('first_name, last_name')
-            .eq('id', invoice.created_by)
-            .single();
-          if (creatorError) {
-            console.error('Error fetching creator profile for invoice:', invoice.id, creatorError.message);
-            creatorProfileDetails = { first_name: 'Error', last_name: 'Fetching' };
-          } else {
-            creatorProfileDetails = {
-              first_name: creatorData.first_name,
-              last_name: creatorData.last_name,
-            };
-          }
-        }
-        return { ...invoice, creator_profile_details: creatorProfileDetails };
-      }));
-      setClientInvoices(invoicesWithCreatorDetails as ClientInvoice[]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
-  }, [id, supabase, session]);
+  }, [id, session]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -360,8 +258,12 @@ const ClientDetailsPage: React.FC = () => {
                     description: `Related to client: ${clientProfile.first_name} ${clientProfile.last_name} (${clientProfile.email})`,
                     status: 'open',
                     priority: 'medium',
-                    assigned_to: null,
+                    assigned_user_id: null,
+                    assigned_group_id: null,
                     linked_task_id: null,
+                    linked_invoice_id: null,
+                    sla_due_at: null,
+                    sla_status: 'met',
                   }}
                   onSuccess={handleFormSuccess}
                 />
@@ -387,6 +289,7 @@ const ClientDetailsPage: React.FC = () => {
                     issue_date: format(new Date(), 'yyyy-MM-dd'),
                     due_date: format(new Date(), 'yyyy-MM-dd'),
                     status: 'draft',
+                    currency_id: clientProfile.default_currency_id || '', // Use client's default currency
                     items: [{ description: '', quantity: 1, unit_price: 0, vat_rate: 0, service_id: null }],
                   }}
                   onSuccess={handleFormSuccess}
@@ -473,7 +376,7 @@ const ClientDetailsPage: React.FC = () => {
                       {task.due_date && (
                         <p>Due Date: {format(new Date(task.due_date), 'PPP')}</p>
                       )}
-                      <p>Created At: {format(new Date(task.created_at), 'PPP')}</p>
+                      <p>Created At: {format(new Date(task.created_at), 'PPP p')}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -508,7 +411,7 @@ const ClientDetailsPage: React.FC = () => {
                       {ticket.linked_task_id && (
                         <p>Linked Task: {ticket.tasks?.title}</p>
                       )}
-                      <p>Created At: {format(new Date(ticket.created_at), 'PPP')}</p>
+                      <p>Created At: {format(new Date(ticket.created_at), 'PPP p')}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -539,7 +442,7 @@ const ClientDetailsPage: React.FC = () => {
                       <p>Issue Date: {format(new Date(invoice.issue_date), 'PPP')}</p>
                       <p>Due Date: {format(new Date(invoice.due_date), 'PPP')}</p>
                       <p>Created By: {invoice.creator_profile_details?.first_name} {invoice.creator_profile_details?.last_name}</p>
-                      <p>Created At: {format(new Date(invoice.created_at), 'PPP')}</p>
+                      <p>Created At: {format(new Date(invoice.created_at), 'PPP p')}</p>
                     </CardContent>
                   </Card>
                 ))}

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface ServiceCategory {
   id: string;
@@ -33,7 +34,7 @@ interface Service {
 }
 
 const ServicesPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -48,76 +49,54 @@ const ServicesPage: React.FC = () => {
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
-    const { data, error } = await supabase
-      .from('service_categories')
-      .select('*')
-      .order('name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load service categories: ' + error.message);
-    } else {
+    try {
+      const { data } = await api.get('/service-categories'); // Pretpostavljena ruta
       setCategories(data as ServiceCategory[]);
+    } catch (error: any) {
+      toast.error('Failed to load service categories: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingCategories(false);
     }
-    setLoadingCategories(false);
   };
 
   const fetchServices = async () => {
     setLoadingServices(true);
-    let query = supabase
-      .from('services')
-      .select(`
-        id,
-        name,
-        description,
-        category_id,
-        default_price,
-        duration_minutes,
-        vat_rate,
-        created_at,
-        service_categories(name)
-      `);
-
-    if (searchTerm) {
-      query = query.ilike('name', `%${searchTerm}%`);
-    }
-
-    if (filterCategoryId !== 'all') {
-      query = query.eq('category_id', filterCategoryId);
-    }
-
-    const { data, error } = await query.order('name', { ascending: true });
-
-    if (error) {
-      toast.error('Failed to load services: ' + error.message);
-    } else {
+    try {
+      const params: any = {};
+      if (searchTerm) {
+        params.name = searchTerm;
+      }
+      if (filterCategoryId !== 'all') {
+        params.category_id = filterCategoryId;
+      }
+      const { data } = await api.get('/services', { params }); // Pretpostavljena ruta
       setServices(data as Service[]);
+    } catch (error: any) {
+      toast.error('Failed to load services: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingServices(false);
     }
-    setLoadingServices(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
     }
     fetchCategories();
-  }, [supabase, session]);
+  }, [session]);
 
   useEffect(() => {
     fetchServices();
-  }, [supabase, searchTerm, filterCategoryId]);
+  }, [searchTerm, filterCategoryId]);
 
   const handleNewCategoryClick = () => {
     setEditingCategory(undefined);
@@ -132,17 +111,13 @@ const ServicesPage: React.FC = () => {
   const handleDeleteCategory = async (categoryId: string) => {
     if (!window.confirm('Are you sure you want to delete this category? This will also delete all associated services.')) return;
 
-    const { error } = await supabase
-      .from('service_categories')
-      .delete()
-      .eq('id', categoryId);
-
-    if (error) {
-      toast.error('Failed to delete category: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/service-categories/${categoryId}`); // Pretpostavljena ruta
       toast.success('Category deleted successfully!');
       fetchCategories();
       fetchServices(); // Refresh services as well
+    } catch (error: any) {
+      toast.error('Failed to delete category: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -159,16 +134,12 @@ const ServicesPage: React.FC = () => {
   const handleDeleteService = async (serviceId: string) => {
     if (!window.confirm('Are you sure you want to delete this service?')) return;
 
-    const { error } = await supabase
-      .from('services')
-      .delete()
-      .eq('id', serviceId);
-
-    if (error) {
-      toast.error('Failed to delete service: ' + error.message);
-    } else {
+    try {
+      await api.delete(`/services/${serviceId}`); // Pretpostavljena ruta
       toast.success('Service deleted successfully!');
       fetchServices();
+    } catch (error: any) {
+      toast.error('Failed to delete service: ' + (error.response?.data?.message || error.message));
     }
   };
 

@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { PlusCircle } from 'lucide-react';
 import NewChatForm from '@/components/NewChatForm';
+import api from '@/lib/api'; // Import novog API klijenta
+import io from 'socket.io-client'; // Import Socket.IO klijenta
+
+const SOCKET_SERVER_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'; // URL vašeg Express API-ja
 
 interface Chat {
   id: string;
@@ -28,12 +32,13 @@ interface EnrichedChat extends Chat {
 }
 
 const ChatPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session, token } = useSession(); // Session context sada pruža token
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<EnrichedChat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isNewChatFormOpen, setIsNewChatFormOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const socketRef = useRef<any>(null);
 
   const fetchConversations = async () => {
     setLoading(true);
@@ -42,60 +47,11 @@ const ChatPage: React.FC = () => {
       return;
     }
 
-    const { data: roleData, error: roleError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    if (roleError) {
-      console.error('Error fetching user role:', roleError.message);
-      toast.error('Failed to fetch your user role.');
-      setLoading(false);
-      return;
-    } else {
+    try {
+      const { data: roleData } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
       setCurrentUserRole(roleData.role);
-    }
 
-    // First, fetch all chat IDs the current user is a part of
-    const { data: userChatParticipants, error: userParticipantsError } = await supabase
-      .from('chat_participants')
-      .select('chat_id')
-      .eq('user_id', session.user.id);
-
-    if (userParticipantsError) {
-      toast.error('Failed to load user chat memberships: ' + userParticipantsError.message);
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
-
-    const chatIds = userChatParticipants.map(p => p.chat_id);
-    if (chatIds.length === 0) {
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
-
-    // Now fetch all chat details and their participants for these chat IDs
-    const { data: chatsWithParticipants, error: chatsError } = await supabase
-      .from('chats')
-      .select(`
-        id,
-        type,
-        name,
-        last_message_at,
-        chat_participants(
-          user_id,
-          profiles(id, first_name, last_name)
-        )
-      `)
-      .in('id', chatIds)
-      .order('last_message_at', { ascending: false, nullsFirst: false });
-
-    if (chatsError) {
-      toast.error('Failed to load conversations: ' + chatsError.message);
-      setConversations([]);
-    } else {
+      const { data: chatsWithParticipants } = await api.get(`/chats/user/${session.user.id}`); // Pretpostavljena ruta
       const fetchedConversations: EnrichedChat[] = chatsWithParticipants.map((chat: any) => ({
         id: chat.id,
         type: chat.type,
@@ -103,8 +59,8 @@ const ChatPage: React.FC = () => {
         last_message_at: chat.last_message_at,
         participants: chat.chat_participants.map((cp: any) => ({
           id: cp.user_id,
-          first_name: cp.profiles?.first_name,
-          last_name: cp.profiles?.last_name,
+          first_name: cp.profile?.first_name, // Prilagodite ako se struktura razlikuje
+          last_name: cp.profile?.last_name, // Prilagodite ako se struktura razlikuje
         })),
       }));
       setConversations(fetchedConversations);
@@ -113,43 +69,50 @@ const ChatPage: React.FC = () => {
       } else if (fetchedConversations.length === 0) {
         setSelectedChatId(null);
       }
+    } catch (error: any) {
+      toast.error('Failed to load conversations: ' + (error.response?.data?.message || error.message));
+      setConversations([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchConversations();
 
-    // Real-time listener for new messages to update last_message_at and re-sort
-    const channel = supabase
-      .channel('chat_updates')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-        (payload) => {
-          const newMessage = payload.new as any;
-          setConversations(prevConversations => {
-            const updatedConversations = prevConversations.map(chat => {
-              if (chat.id === newMessage.chat_id) {
-                return { ...chat, last_message_at: newMessage.created_at };
-              }
-              return chat;
-            });
-            // Sort by last_message_at, most recent first
-            return updatedConversations.sort((a, b) => {
-              if (!a.last_message_at) return 1;
-              if (!b.last_message_at) return -1;
-              return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
-            });
-          });
-        }
-      )
-      .subscribe();
+    // Postavljanje Socket.IO veze za ažuriranja chata
+    if (token) {
+      socketRef.current = io(SOCKET_SERVER_URL, {
+        query: { token },
+      });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, session, selectedChatId]);
+      socketRef.current.on('connect_error', (err: any) => {
+        console.error('Socket.IO connection error:', err.message);
+        toast.error('Chat connection error. Please refresh.');
+      });
+
+      socketRef.current.on('newMessage', (newMessage: any) => {
+        setConversations(prevConversations => {
+          const updatedConversations = prevConversations.map(chat => {
+            if (chat.id === newMessage.chat_id) {
+              return { ...chat, last_message_at: newMessage.created_at };
+            }
+            return chat;
+          });
+          // Sort by last_message_at, most recent first
+          return updatedConversations.sort((a, b) => {
+            if (!a.last_message_at) return 1;
+            if (!b.last_message_at) return -1;
+            return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+          });
+        });
+      });
+
+      return () => {
+        socketRef.current.disconnect();
+      };
+    }
+  }, [session, selectedChatId, token]); // Dodajte token kao zavisnost
 
   const handleNewChatSuccess = (newChatId: string) => {
     setIsNewChatFormOpen(false);

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import api from '@/lib/api'; // Import novog API klijenta
 
 interface AppSettings {
   company_name: string | null;
@@ -36,61 +37,49 @@ interface AppSettings {
 }
 
 const SettingsPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession(); // Session context više ne pruža supabase direktno
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAppSettings = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('*')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-
-    if (error) {
-      toast.error('Failed to load application settings: ' + error.message);
-      setAppSettings(null);
-    } else {
+    try {
+      const { data } = await api.get('/app-settings'); // Pretpostavljena ruta
       setAppSettings(data as AppSettings);
+    } catch (error: any) {
+      toast.error('Failed to load application settings: ' + (error.response?.data?.message || error.message));
+      setAppSettings(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (session) {
       const fetchUserRole = async () => {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (error) {
-          console.error('Error fetching user role:', error.message);
-          toast.error('Failed to fetch your user role.');
-        } else {
+        try {
+          const { data } = await api.get(`/profiles/${session.user.id}`); // Pretpostavljena ruta
           setCurrentUserRole(data.role);
+        } catch (error: any) {
+          console.error('Error fetching user role:', error.response?.data || error.message);
+          toast.error('Failed to fetch your user role.');
         }
       };
       fetchUserRole();
       fetchAppSettings();
     }
-  }, [supabase, session]);
+  }, [session]);
 
   const handleModuleToggle = async (moduleName: keyof AppSettings, checked: boolean) => {
     if (!appSettings) return;
 
-    const { error } = await supabase
-      .from('app_settings')
-      .update({ [moduleName]: checked })
-      .eq('id', '00000000-0000-0000-0000-000000000001');
-
-    if (error) {
-      toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + error.message);
-    } else {
+    try {
+      await api.put('/app-settings/modules', { [moduleName]: checked }); // Pretpostavljena ruta
       toast.success(`${moduleName.replace('module_', '').replace('_enabled', '')} status updated successfully!`);
       setAppSettings(prev => prev ? { ...prev, [moduleName]: checked } : null);
+    } catch (error: any) {
+      toast.error(`Failed to update ${moduleName.replace('module_', '').replace('_enabled', '')} status: ` + (error.response?.data?.message || error.message));
     }
   };
 
