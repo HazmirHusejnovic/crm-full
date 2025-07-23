@@ -153,7 +153,7 @@ const AppRoutes = () => {
         {isModuleEnabled('module_chat_enabled') && <Route path="/chat" element={<ChatPage />} />}
 
         {/* Redirect to dashboard if root path is accessed and user is logged in */}
-        {isAuthenticated && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
+        {/* REMOVED: isAuthenticated && <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
       </Route>
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
